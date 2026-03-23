@@ -6,7 +6,7 @@ import time,sys,os,json,threading,ctypes,random,queue
 import tkinter as tk
 from tkinter import messagebox
 SCRIPT_DIR=os.path.dirname(os.path.abspath(__file__))
-VERSION="5.2"
+VERSION="5.3"
 
 def is_admin():
     if sys.platform!='win32': return True
@@ -242,105 +242,185 @@ class App:
         except Exception: pass
         self.root.protocol("WM_DELETE_WINDOW",self._quit)
 
+    def _sec(self,text):
+        """Section label with accent line"""
+        f=tk.Frame(self.root,bg=BG);f.pack(fill=tk.X,padx=20,pady=(8,3))
+        tk.Label(f,text=text,bg=BG,fg=DIM,font=("Consolas",7,"bold")).pack(side=tk.LEFT)
+        c=tk.Canvas(f,bg=BG,height=1,highlightthickness=0)
+        c.pack(side=tk.LEFT,fill=tk.X,expand=True,padx=(8,0))
+        c.create_line(0,0,300,0,fill=DIM2)
+
+    def _card(self,**kw):
+        """Premium card with glow border"""
+        border=kw.get("border",DIM2)
+        outer=tk.Frame(self.root,bg=border);outer.pack(fill=tk.X,padx=20,pady=(0,2))
+        inner=tk.Frame(outer,bg=CARD);inner.pack(fill=tk.X,padx=1,pady=1)
+        return inner
+
     def _build(self):
-        hdr=tk.Frame(self.root,bg=BG);hdr.pack(fill=tk.X,padx=18,pady=(12,0))
+        # ═══ HEADER ═══
+        hdr=tk.Frame(self.root,bg=BG);hdr.pack(fill=tk.X,padx=20,pady=(14,0))
         try:
             lp=os.path.join(SCRIPT_DIR,"mascot.png")
             if not os.path.exists(lp): lp=os.path.join(SCRIPT_DIR,"logo.png")
             if os.path.exists(lp):
-                li=Image.open(lp).resize((56,56),Image.LANCZOS)
+                li=Image.open(lp).resize((64,64),Image.LANCZOS)
                 self._logo=ImageTk.PhotoImage(li)
-                lf=tk.Frame(hdr,bg=CARD,highlightbackground=GLOW,highlightthickness=1)
-                lf.pack(side=tk.LEFT,padx=(0,12))
-                tk.Label(lf,image=self._logo,bg=CARD,padx=2,pady=2).pack()
-        except: pass
-        tf=tk.Frame(hdr,bg=BG);tf.pack(side=tk.LEFT)
-        tk.Label(tf,text="AutoFish",bg=BG,fg=WHITE,font=("Segoe UI",22,"bold")).pack(anchor="w")
-        s=tk.Frame(tf,bg=BG);s.pack(anchor="w")
-        tk.Label(s,text="ULTIMATE",bg=BG,fg=ACCENT,font=("Consolas",9,"bold")).pack(side=tk.LEFT)
-        tk.Label(s,text=f" v{VERSION}",bg=BG,fg=DIM,font=("Consolas",9)).pack(side=tk.LEFT)
-        tk.Label(tf,text="by Herlove",bg=BG,fg=DIM,font=("Segoe UI",8)).pack(anchor="w")
-        self.sf=tk.Frame(hdr,bg=CARD,highlightbackground=DIM,highlightthickness=1)
-        self.sf.pack(side=tk.RIGHT)
-        self.dot=tk.Label(self.sf,text=" ",bg=DIM,font=("Segoe UI",3))
-        self.dot.pack(side=tk.LEFT,padx=(6,4),pady=6)
-        self.st=tk.Label(self.sf,text="OFF",bg=CARD,fg=DIM,font=("Consolas",9,"bold"))
-        self.st.pack(side=tk.LEFT,padx=(0,8),pady=6)
+                lf=tk.Frame(hdr,bg=GLOW);lf.pack(side=tk.LEFT,padx=(0,14))
+                lfi=tk.Frame(lf,bg=CARD);lfi.pack(padx=1,pady=1)
+                tk.Label(lfi,image=self._logo,bg=CARD,padx=3,pady=3).pack()
+        except Exception: pass
+
+        tf=tk.Frame(hdr,bg=BG);tf.pack(side=tk.LEFT,fill=tk.X,expand=True)
+        tk.Label(tf,text="AutoFish",bg=BG,fg="#ffffff",font=("Segoe UI",26,"bold")).pack(anchor="w")
+        sub=tk.Frame(tf,bg=BG);sub.pack(anchor="w")
+        tk.Label(sub,text="ULTIMATE ",bg=BG,fg=ACCENT,font=("Consolas",9,"bold")).pack(side=tk.LEFT)
+        tk.Label(sub,text=f"v{VERSION}",bg=BG,fg=DIM,font=("Consolas",9)).pack(side=tk.LEFT)
+        tk.Label(sub,text="  by Herlove",bg=BG,fg="#1e293b",font=("Segoe UI",8)).pack(side=tk.LEFT)
+
+        # Status badge (right)
+        self.sf=tk.Frame(hdr,bg=DIM2);self.sf.pack(side=tk.RIGHT)
+        sfi=tk.Frame(self.sf,bg=CARD);sfi.pack(padx=1,pady=1)
+        self.dot=tk.Label(sfi,text=" ",bg=DIM,font=("Segoe UI",2));self.dot.pack(side=tk.LEFT,padx=(8,4),pady=8)
+        self.st=tk.Label(sfi,text="OFFLINE",bg=CARD,fg=DIM,font=("Consolas",9,"bold"))
+        self.st.pack(side=tk.LEFT,padx=(0,10),pady=8)
+
+        # Gradient line
         line=tk.Canvas(self.root,bg=BG,height=2,highlightthickness=0)
-        line.pack(fill=tk.X,padx=18,pady=(8,0))
-        for i in range(464):
-            t=i/464;line.create_line(i+18,0,i+18,2,fill=f"#{int(14+(74-14)*t):02x}{int(165+(222-165)*t):02x}{int(233+(128-233)*t):02x}")
-        po=tk.Frame(self.root,bg=GLOW);po.pack(fill=tk.X,padx=18,pady=(8,0))
-        pi=tk.Frame(po,bg="#0a1128");pi.pack(fill=tk.X,padx=1,pady=1)
-        self.prev=tk.Label(pi,bg="#030810",text="F6 Select Region",fg=DIM,font=("Consolas",9))
-        self.prev.pack(fill=tk.X,ipady=38)
-        self.seq=tk.Label(self.root,text="",bg=BG,fg=ACCENT,font=("Consolas",14,"bold"))
-        self.seq.pack(pady=(3,0))
-        bo=tk.Frame(self.root,bg=GREEN2);bo.pack(fill=tk.X,padx=18,pady=(3,0))
-        self.btn=tk.Button(bo,text="START",bg=GREEN,fg=BG,font=("Segoe UI",15,"bold"),
-            relief="flat",pady=7,cursor="hand2",activebackground=GREEN2,bd=0,command=self.toggle)
+        line.pack(fill=tk.X,padx=20,pady=(10,0))
+        for i in range(460):
+            t=i/460
+            r=int(14+(74-14)*t);g=int(165+(222-165)*t);b=int(233+(128-233)*t)
+            line.create_line(i+20,0,i+20,2,fill=f"#{r:02x}{g:02x}{b:02x}")
+
+        # ═══ PREVIEW ═══
+        self._sec("LIVE PREVIEW")
+        po=tk.Frame(self.root,bg=GLOW);po.pack(fill=tk.X,padx=20,pady=(0,0))
+        pi=tk.Frame(po,bg="#050c1a");pi.pack(fill=tk.X,padx=1,pady=1)
+        self.prev=tk.Label(pi,bg="#030810",text="  Press F6 to select capture region  ",
+            fg=DIM,font=("Consolas",9))
+        self.prev.pack(fill=tk.X,ipady=40)
+
+        # Detected sequence (big)
+        self.seq=tk.Label(self.root,text="",bg=BG,fg=ACCENT,font=("Consolas",16,"bold"),pady=2)
+        self.seq.pack()
+
+        # ═══ START BUTTON ═══
+        bo=tk.Frame(self.root,bg=GREEN2);bo.pack(fill=tk.X,padx=20,pady=(2,0))
+        self.btn=tk.Button(bo,text="  S T A R T  ",bg=GREEN,fg="#020617",
+            font=("Segoe UI",16,"bold"),relief="flat",pady=9,cursor="hand2",
+            activebackground=GREEN2,bd=0,command=self.toggle)
         self.btn.pack(fill=tk.X,padx=1,pady=1)
         self.btn.bind("<Enter>",lambda e:self.btn.config(bg=GREEN2 if not self.running else "#ef4444"))
         self.btn.bind("<Leave>",lambda e:self.btn.config(bg=GREEN if not self.running else RED))
         self.bo=bo
-        da=tk.Frame(self.root,bg=CARD,highlightbackground=DIM2,highlightthickness=1)
-        da.pack(fill=tk.X,padx=18,pady=(4,0))
-        di=tk.Frame(da,bg=CARD);di.pack(fill=tk.X,padx=6,pady=6)
-        for a,i,l,c in [("cnt","0","KEYS",ACCENT),("fsh","0","FISH",GLOW),("fps","0.0","FPS",PURPLE),("tmr","00:00","TIME",ORANGE)]:
-            if a!="cnt": tk.Frame(di,bg=DIM2,width=1).pack(side=tk.LEFT,fill=tk.Y,padx=3)
+        tk.Label(self.root,text="F5",bg=BG,fg="#0f172a",font=("Consolas",7)).pack()
+
+        # ═══ DASHBOARD ═══
+        self._sec("STATISTICS")
+        da=self._card(border=DIM2)
+        di=tk.Frame(da,bg=CARD);di.pack(fill=tk.X,padx=8,pady=10)
+        for a,init,label,color in [
+            ("cnt","0","KEYS\nPRESSED",ACCENT),("fsh","0","FISH\nCAUGHT",GLOW),
+            ("fps","0.0","SCAN\nFPS",PURPLE),("tmr","00:00","RUN\nTIME",ORANGE)
+        ]:
+            if a!="cnt":
+                sep=tk.Frame(di,bg=DIM2,width=1);sep.pack(side=tk.LEFT,fill=tk.Y,padx=6)
             f=tk.Frame(di,bg=CARD);f.pack(side=tk.LEFT,expand=True)
-            lb=tk.Label(f,text=i,bg=CARD,fg=c,font=("Consolas",16,"bold"));lb.pack()
-            tk.Label(f,text=l,bg=CARD,fg=DIM,font=("Consolas",6,"bold")).pack()
+            lb=tk.Label(f,text=init,bg=CARD,fg=color,font=("Consolas",18,"bold"))
+            lb.pack()
+            tk.Label(f,text=label,bg=CARD,fg=DIM,font=("Consolas",6,"bold"),justify="center").pack()
             setattr(self,"l_"+a,lb)
-        ct=tk.Frame(self.root,bg=CARD,highlightbackground=DIM2,highlightthickness=1)
-        ct.pack(fill=tk.X,padx=18,pady=(4,0))
-        ci=tk.Frame(ct,bg=CARD);ci.pack(fill=tk.X,padx=6,pady=5)
-        for t2,c2,cmd in [("Select F6",ACCENT,self.pick),("Test Read",GREEN,self.tread),("Test Key",PURPLE,self.tkey)]:
-            btn=tk.Button(ci,text=t2,bg="#0a1128",fg=c2,font=("Segoe UI",8,"bold"),relief="flat",padx=6,pady=2,cursor="hand2",command=cmd)
-            btn.pack(side=tk.LEFT,padx=2)
-            btn.bind("<Enter>",lambda e,b=btn:b.config(bg=DIM2))
-            btn.bind("<Leave>",lambda e,b=btn:b.config(bg="#0a1128"))
+
+        # ═══ CONTROLS ═══
+        self._sec("CONTROLS")
+        ct=self._card(border=DIM2)
+        ci=tk.Frame(ct,bg=CARD);ci.pack(fill=tk.X,padx=8,pady=8)
+
+        for txt,clr,cmd in [
+            ("  Select Region (F6)  ",ACCENT,self.pick),
+            ("  Test Read  ",GREEN,self.tread),
+            ("  Test Key  ",PURPLE,self.tkey)
+        ]:
+            btn=tk.Button(ci,text=txt,bg="#060d1a",fg=clr,
+                font=("Segoe UI",8,"bold"),relief="flat",pady=4,cursor="hand2",command=cmd)
+            btn.pack(side=tk.LEFT,padx=3)
+            btn.bind("<Enter>",lambda e,b=btn,c=clr:b.config(bg=DIM2,fg="#ffffff"))
+            btn.bind("<Leave>",lambda e,b=btn,c=clr:b.config(bg="#060d1a",fg=c))
+
         self.lreg=tk.Label(ci,text="not set",bg=CARD,fg=ORANGE,font=("Consolas",8,"bold"))
-        self.lreg.pack(side=tk.RIGHT,padx=4)
-        sf=tk.Frame(self.root,bg=CARD,highlightbackground=DIM2,highlightthickness=1)
-        sf.pack(fill=tk.X,padx=18,pady=(4,0))
-        self._sl(sf,"Keys",self.nk,2,10,ACCENT)
-        self._sl(sf,"Delay ms",self.kd,30,200,GREEN)
-        af=tk.Frame(sf,bg=CARD);af.pack(fill=tk.X,padx=10,pady=(1,4))
-        tk.Checkbutton(af,text="Auto Cast",variable=self.ac,bg=CARD,fg=WHITE,selectcolor=BG,activebackground=CARD,font=("Segoe UI",9)).pack(side=tk.LEFT)
-        tk.Label(af,text="Key:",bg=CARD,fg=DIM,font=("Segoe UI",8)).pack(side=tk.LEFT,padx=(8,2))
-        tk.Entry(af,textvariable=self.ck,bg=BG,fg=ACCENT,font=("Consolas",10,"bold"),width=3,relief="flat",justify="center").pack(side=tk.LEFT)
-        tk.Label(af,text="Wait:",bg=CARD,fg=DIM,font=("Segoe UI",8)).pack(side=tk.LEFT,padx=(6,2))
-        vl=tk.Label(af,text=str(self.cd.get()),bg=CARD,fg=ORANGE,font=("Consolas",9,"bold"),width=2)
-        vl.pack(side=tk.LEFT)
-        tk.Scale(af,from_=1,to=20,orient=tk.HORIZONTAL,variable=self.cd,bg=CARD,fg=CARD,troughcolor=BG,highlightthickness=0,showvalue=False,length=50,sliderlength=10,activebackground=ORANGE,command=lambda v,l=vl:l.config(text=str(int(float(v))))).pack(side=tk.LEFT)
-        lo=tk.Frame(self.root,bg=DIM2);lo.pack(fill=tk.BOTH,expand=True,padx=18,pady=(4,0))
-        self.log_b=tk.Text(lo,bg="#030810",fg=GREEN,font=("Consolas",9),relief="flat",wrap=tk.WORD,state=tk.DISABLED,padx=8,pady=4)
+        self.lreg.pack(side=tk.RIGHT,padx=6)
+
+        # ═══ SETTINGS ═══
+        self._sec("SETTINGS")
+        sf=self._card(border=DIM2)
+        self._sl(sf,"Keys per Lane",self.nk,2,10,ACCENT)
+        self._sl(sf,"Key Delay (ms)",self.kd,30,200,GREEN)
+
+        # Auto cast
+        af=tk.Frame(sf,bg=CARD);af.pack(fill=tk.X,padx=12,pady=(2,8))
+        tk.Checkbutton(af,text="Auto Cast Rod",variable=self.ac,bg=CARD,fg=WHITE,
+            selectcolor=BG,activebackground=CARD,font=("Segoe UI",9)).pack(side=tk.LEFT)
+        tk.Label(af,text="Key:",bg=CARD,fg=DIM,font=("Segoe UI",8)).pack(side=tk.LEFT,padx=(10,2))
+        tk.Entry(af,textvariable=self.ck,bg="#060d1a",fg=ACCENT,font=("Consolas",11,"bold"),
+            width=3,relief="flat",justify="center",insertbackground=ACCENT).pack(side=tk.LEFT)
+        tk.Label(af,text="Delay:",bg=CARD,fg=DIM,font=("Segoe UI",8)).pack(side=tk.LEFT,padx=(10,2))
+        cvl=tk.Label(af,text=str(self.cd.get()),bg=CARD,fg=ORANGE,font=("Consolas",10,"bold"),width=3)
+        cvl.pack(side=tk.LEFT)
+        tk.Scale(af,from_=1,to=20,orient=tk.HORIZONTAL,variable=self.cd,bg=CARD,fg=CARD,
+            troughcolor=BG,highlightthickness=0,showvalue=False,length=60,sliderlength=10,
+            activebackground=ORANGE,command=lambda v,l=cvl:l.config(text=str(int(float(v))))).pack(side=tk.LEFT)
+        tk.Label(af,text="s",bg=CARD,fg=DIM,font=("Segoe UI",8)).pack(side=tk.LEFT)
+
+        # ═══ LOG ═══
+        self._sec("SYSTEM LOG")
+        lo=tk.Frame(self.root,bg=DIM2);lo.pack(fill=tk.BOTH,expand=True,padx=20,pady=(0,0))
+        self.log_b=tk.Text(lo,bg="#020810",fg=GREEN,font=("Consolas",9),
+            relief="flat",wrap=tk.WORD,state=tk.DISABLED,padx=10,pady=6,
+            insertbackground=ACCENT,selectbackground=DIM2)
         self.log_b.pack(fill=tk.BOTH,expand=True,padx=1,pady=1)
-        ft=tk.Frame(self.root,bg=BG);ft.pack(fill=tk.X,padx=18,pady=(3,6))
-        tk.Label(ft,text="F5 Start | F6 Region",bg=BG,fg=DIM2,font=("Consolas",7)).pack(side=tk.LEFT)
-        tk.Label(ft,text="Admin" if is_admin() else "NO ADMIN!",bg=BG,fg=DIM2 if is_admin() else RED,font=("Consolas",7,"bold")).pack(side=tk.RIGHT)
+
+        # ═══ FOOTER ═══
+        ftline=tk.Canvas(self.root,bg=BG,height=1,highlightthickness=0)
+        ftline.pack(fill=tk.X,padx=20,pady=(4,0))
+        ftline.create_line(0,0,460,0,fill=DIM2)
+
+        ft=tk.Frame(self.root,bg=BG);ft.pack(fill=tk.X,padx=20,pady=(4,8))
+        tk.Label(ft,text="F5 Start/Stop",bg=BG,fg="#0f172a",font=("Consolas",7)).pack(side=tk.LEFT)
+        tk.Label(ft,text="F6 Region",bg=BG,fg="#0f172a",font=("Consolas",7)).pack(side=tk.LEFT,padx=8)
+        admin_txt="ADMIN" if is_admin() else "NO ADMIN!"
+        admin_clr="#0f172a" if is_admin() else RED
+        tk.Label(ft,text=admin_txt,bg=BG,fg=admin_clr,font=("Consolas",7,"bold")).pack(side=tk.RIGHT)
+
+        # Keybinds
         self.root.bind("<F5>",lambda e:self.toggle())
         self.root.bind("<F6>",lambda e:self.pick())
-        self.log_b.config(state=tk.NORMAL)
-        self.log_b.tag_config("dim",foreground=DIM)
-        self.log_b.insert(tk.END," ___      _       ___ _    _   \n","dim")
-        self.log_b.insert(tk.END,"|_ _|_ _ (_)__ _ | __(_)__| |_ \n","dim")
-        self.log_b.insert(tk.END," | || ' \\| / _` || _|| (_-< ' \\\n","dim")
-        self.log_b.insert(tk.END,"|___|_||_|\\_\\__,_|_| |_|__/_||_|\n","dim")
-        self.log_b.config(state=tk.DISABLED)
-        self.log(f"> AutoFish v{VERSION}")
-        self.log(f"> Admin: {'YES' if is_admin() else 'NO!'}")
-        try: self.log(f"> Tesseract {pytesseract.get_tesseract_version()}")
-        except: self.log("> ERROR: Tesseract not found!")
-        if region: self.log(f"> Region: {region['width']}x{region['height']}")
 
-    def _sl(self,p,l,v,lo,hi,c):
-        f=tk.Frame(p,bg=CARD);f.pack(fill=tk.X,padx=10,pady=1)
-        tk.Label(f,text=l,bg=CARD,fg=WHITE,font=("Segoe UI",9)).pack(side=tk.LEFT)
-        vl=tk.Label(f,text=str(v.get()),bg=CARD,fg=c,font=("Consolas",10,"bold"),width=4)
+        # ASCII Boot
+        self.log_b.config(state=tk.NORMAL)
+        self.log_b.tag_config("boot",foreground="#0f2940")
+        self.log_b.insert(tk.END,"  ╔═══════════════════════════════╗\n","boot")
+        self.log_b.insert(tk.END,"  ║   A U T O F I S H   v5.2    ║\n","boot")
+        self.log_b.insert(tk.END,"  ║      by Herlove              ║\n","boot")
+        self.log_b.insert(tk.END,"  ╚═══════════════════════════════╝\n","boot")
+        self.log_b.config(state=tk.DISABLED)
+
+        self.log(f"> AutoFish v{VERSION} ULTIMATE")
+        self.log(f"> Admin: {'YES' if is_admin() else 'NO - Run as Admin!'}")
+        try: self.log(f"> Tesseract {pytesseract.get_tesseract_version()}")
+        except Exception: self.log("> ERROR: Tesseract not found!")
+        if region: self.log(f"> Region loaded: {region['width']}x{region['height']}")
+        self.log("> Press F6 to select region, F5 to start")
+
+    def _sl(self,p,label,var,lo,hi,color):
+        f=tk.Frame(p,bg=CARD);f.pack(fill=tk.X,padx=12,pady=3)
+        tk.Label(f,text=label,bg=CARD,fg=WHITE,font=("Segoe UI",9)).pack(side=tk.LEFT)
+        vl=tk.Label(f,text=str(var.get()),bg=CARD,fg=color,font=("Consolas",11,"bold"),width=4)
         vl.pack(side=tk.RIGHT)
-        tk.Scale(f,from_=lo,to=hi,orient=tk.HORIZONTAL,variable=v,bg=CARD,fg=CARD,troughcolor=BG,highlightthickness=0,showvalue=False,length=110,sliderlength=14,activebackground=c,command=lambda v2,l2=vl:l2.config(text=str(int(float(v2))))).pack(side=tk.RIGHT,padx=3)
+        tk.Scale(f,from_=lo,to=hi,orient=tk.HORIZONTAL,variable=var,bg=CARD,fg=CARD,
+            troughcolor=BG,highlightthickness=0,showvalue=False,length=120,sliderlength=16,
+            activebackground=color,
+            command=lambda v,l=vl:l.config(text=str(int(float(v))))).pack(side=tk.RIGHT,padx=4)
 
     def _tick(self):
         if self.running:

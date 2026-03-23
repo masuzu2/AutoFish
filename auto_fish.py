@@ -150,18 +150,95 @@ def read_all(gray, num_keys):
     if all(c is not None for c in chars): return chars
     return None
 
+_frame_count = 0
+
 def make_debug(frame, keys, num):
-    d = frame.copy(); h,w = d.shape[:2]; sw = w // num
-    cv2.rectangle(d, (0,0), (w-1,h-1), (56,189,248), 2)
+    global _frame_count
+    _frame_count += 1
+    h, w = frame.shape[:2]
+    sw = w // num
+
+    # สร้าง canvas ใหญ่กว่า frame (เพิ่มพื้นที่บน+ล่าง)
+    pad_top = 36
+    pad_bot = 32
+    canvas_h = h + pad_top + pad_bot
+    canvas = np.zeros((canvas_h, w, 3), dtype=np.uint8)
+    canvas[:] = (10, 8, 2)  # dark bg
+
+    # วาง frame ตรงกลาง
+    canvas[pad_top:pad_top+h, 0:w] = frame
+
+    # ═══ Top bar ═══
+    cv2.rectangle(canvas, (0, 0), (w-1, pad_top-1), (15, 23, 42), -1)
+    # Scan line animation
+    scan_x = int((_frame_count * 7) % w)
+    cv2.line(canvas, (scan_x, 0), (scan_x, pad_top), (34, 211, 238), 1)
+    # Title
+    cv2.putText(canvas, "AUTOFISH", (8, 14), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (34, 211, 238), 1)
+    # Detected sequence
+    if keys:
+        seq_text = "  ".join(k.upper() for k in keys)
+        cv2.putText(canvas, seq_text, (8, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (74, 222, 128), 1)
+        cv2.putText(canvas, "DETECTED", (w-80, 14), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (74, 222, 128), 1)
+    else:
+        cv2.putText(canvas, "SCANNING...", (w-100, 14), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (51, 65, 85), 1)
+
+    # ═══ Slot overlays ═══
     for i in range(num):
-        x1, x2 = i*sw, min((i+1)*sw, w)
+        x1 = i * sw
+        x2 = min((i+1) * sw, w)
+        y1 = pad_top
+        y2 = pad_top + h
+
         if keys and i < len(keys) and keys[i]:
-            cv2.rectangle(d, (x1+2,2), (x2-2,h-2), (0,255,0), 2)
-            cv2.putText(d, keys[i].upper(), (x1+8,24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
+            # เจอตัวอักษร → กรอบเขียว neon + พื้นเขียวจาง
+            overlay = canvas[y1:y2, x1:x2].copy()
+            green_tint = np.full_like(overlay, (15, 40, 10))
+            cv2.addWeighted(overlay, 0.85, green_tint, 0.15, 0, canvas[y1:y2, x1:x2])
+            cv2.rectangle(canvas, (x1+1, y1+1), (x2-1, y2-1), (74, 222, 128), 2)
+            # ตัวอักษรใหญ่ตรงกลาง
+            letter = keys[i].upper()
+            font_scale = 1.2 if sw > 40 else 0.8
+            (tw, th), _ = cv2.getTextSize(letter, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 2)
+            tx = x1 + (sw - tw) // 2
+            ty = y1 + (h + th) // 2
+            # Shadow
+            cv2.putText(canvas, letter, (tx+1, ty+1), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 60, 0), 2)
+            # Main text
+            cv2.putText(canvas, letter, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (74, 222, 128), 2)
+            # Slot number
+            cv2.putText(canvas, str(i+1), (x1+4, y1+12), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (74, 222, 128), 1)
         else:
-            cv2.rectangle(d, (x1+2,2), (x2-2,h-2), (40,40,60), 1)
-    cv2.putText(d, "AUTOFISH", (8, h-8), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0,255,255), 1)
-    return d
+            # ไม่เจอ → กรอบเทามืด
+            cv2.rectangle(canvas, (x1+1, y1+1), (x2-1, y2-1), (40, 50, 70), 1)
+            cv2.putText(canvas, str(i+1), (x1+4, y1+12), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (40, 50, 70), 1)
+
+        # Divider ระหว่าง slot
+        if i < num - 1:
+            cv2.line(canvas, (x2, y1+4), (x2, y2-4), (30, 40, 55), 1)
+
+    # ═══ Border glow (animated) ═══
+    glow_intensity = int(abs((_frame_count % 60) - 30) * 3)
+    border_color = (56 + glow_intensity//4, 189, 248)
+    cv2.rectangle(canvas, (0, pad_top), (w-1, pad_top+h-1), border_color, 2)
+
+    # ═══ Bottom bar ═══
+    by = pad_top + h
+    cv2.rectangle(canvas, (0, by), (w-1, canvas_h-1), (15, 23, 42), -1)
+    # Progress dots
+    for i in range(num):
+        cx = int(w / num * i + w / num / 2)
+        cy = by + pad_bot // 2
+        if keys and i < len(keys) and keys[i]:
+            cv2.circle(canvas, (cx, cy), 5, (74, 222, 128), -1)
+            cv2.circle(canvas, (cx, cy), 7, (74, 222, 128), 1)
+        else:
+            cv2.circle(canvas, (cx, cy), 5, (40, 50, 70), -1)
+    # Status text
+    status = f"{len([k for k in (keys or []) if k])}/{num}" if keys else "---"
+    cv2.putText(canvas, status, (w-40, by+20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 120, 150), 1)
+
+    return canvas
 
 # ═══ Config ═══
 CFG = os.path.join(SCRIPT_DIR, "config.json")
@@ -258,7 +335,7 @@ class App:
         po = tk.Frame(self.root, bg=GLOW); po.pack(fill=tk.X, padx=20, pady=(10,0))
         pi = tk.Frame(po, bg=BG2); pi.pack(fill=tk.X, padx=1, pady=1)
         self.preview = tk.Label(pi, bg="#030810", text="  F6 Select Region  ", fg=DIM, font=("Consolas",9))
-        self.preview.pack(fill=tk.X, ipady=32)
+        self.preview.pack(fill=tk.X, ipady=45)
 
         # Last sequence
         self.lbl_seq = tk.Label(self.root, text="", bg=BG, fg=ACCENT, font=("Consolas",14,"bold"))
@@ -561,8 +638,8 @@ class App:
         try:
             rgb = cv2.cvtColor(self.debug_img, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(rgb); w,h = img.size
-            nw=458; nh=max(int(h*nw/w),20)
-            img = img.resize((nw,nh), Image.NEAREST)
+            nw = 460; nh = max(int(h*nw/w), 30)
+            img = img.resize((nw, nh), Image.LANCZOS)
             photo = ImageTk.PhotoImage(img)
             self.preview.config(image=photo, text=""); self.preview.image = photo
         except: pass
@@ -577,12 +654,12 @@ class App:
                     d = make_debug(frame, None, self.num_keys.get())
                     rgb = cv2.cvtColor(d, cv2.COLOR_BGR2RGB)
                     img = Image.fromarray(rgb); w,h = img.size
-                    nw=458; nh=max(int(h*nw/w),20)
-                    img = img.resize((nw,nh), Image.NEAREST)
+                    nw = 460; nh = max(int(h*nw/w), 30)
+                    img = img.resize((nw, nh), Image.LANCZOS)
                     photo = ImageTk.PhotoImage(img)
                     self.preview.config(image=photo, text=""); self.preview.image = photo
             except: pass
-        self.root.after(150, self._preview_loop)
+        self.root.after(120, self._preview_loop)
 
     def log(self, msg):
         self.log_box.config(state=tk.NORMAL)

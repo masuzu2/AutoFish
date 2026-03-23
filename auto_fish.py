@@ -397,8 +397,16 @@ class App:
         self.root.iconify(); time.sleep(0.3)
         sel=tk.Toplevel(self.root); sel.overrideredirect(True)
         sel.attributes("-topmost",True); sel.attributes("-alpha",0.25)
-        sw,sh=sel.winfo_screenwidth(),sel.winfo_screenheight()
-        sel.geometry(f"{sw}x{sh}+0+0"); sel.configure(bg="black")
+        # #1 Multi-monitor: ใช้ mss ดึงขนาดจอทั้งหมดรวมกัน
+        try:
+            with mss.mss() as s:
+                mon=s.monitors[0]  # [0] = virtual screen รวมทุกจอ
+                sw,sh=mon["width"],mon["height"]
+                ox,oy=mon["left"],mon["top"]  # offset (จอ 2 อาจเริ่มที่ x=-1920)
+        except Exception:
+            sw,sh=sel.winfo_screenwidth(),sel.winfo_screenheight()
+            ox,oy=0,0
+        sel.geometry(f"{sw}x{sh}+{ox}+{oy}"); sel.configure(bg="black")
         c=tk.Canvas(sel,bg="black",highlightthickness=0,cursor="cross"); c.pack(fill=tk.BOTH,expand=True)
         c.create_rectangle(sw//2-220,12,sw//2+220,82,fill="black",outline=ACCENT,width=2)
         c.create_text(sw//2,28,text="Drag over QTE keys only",fill=ACCENT,font=("Segoe UI",14,"bold"))
@@ -455,16 +463,21 @@ class App:
         else:
             if not region: messagebox.showwarning("AutoFish","F6 Select Region!"); return
             self.running=True
-            save_cfg(nk=self.nk.get(),kd=self.kd.get(),ac=self.ac.get(),ck=self.ck.get(),cd=self.cd.get())
+            # #3 Thread-safety: อ่านค่า UI ใน main thread ก่อน
+            params = {
+                "num": self.nk.get(), "kd": self.kd.get()/1000,
+                "ac": self.ac.get(), "ck": self.ck.get().lower(), "cd": self.cd.get()
+            }
+            save_cfg(nk=params["num"],kd=self.kd.get(),ac=params["ac"],ck=params["ck"],cd=params["cd"])
             self.btn.config(text="STOP",bg=RED); self.bo.config(bg="#b91c1c")
             self.st.config(text="ON",fg=GREEN); self.dot.config(bg=GREEN)
             self.sf.config(highlightbackground=GREEN)
             self.log("> Go! 3s...")
-            threading.Thread(target=self._run,daemon=True).start()
+            threading.Thread(target=self._run,args=(params,),daemon=True).start()
 
-    def _run(self):
-        num=self.nk.get(); kd=self.kd.get()/1000
-        ac=self.ac.get(); ck=self.ck.get().lower(); cd=self.cd.get()
+    def _run(self, params):
+        num=params["num"]; kd=params["kd"]
+        ac=params["ac"]; ck=params["ck"]; cd=params["cd"]
         self.session_keys=0; self.session_start=time.time()
         self.fish=0; self.scans=0; self.lt=time.time()
         # #3 Dynamic TH: คำนวณจาก region height (รองรับ 720p/1080p/2K/4K)
@@ -503,13 +516,14 @@ class App:
                             except Exception: pass
                         self.root.after(0,self._upd,fps); lseq=seq
                         if ac and self.running:
-                            # Non-blocking: สแกนต่อระหว่างรอ cast
-                            cast_at = time.time() + cd + random.uniform(0.2,0.8)
-                            while self.running and time.time() < cast_at:
-                                time.sleep(0.05)  # ยังสแกนจอได้
-                            if self.running:
-                                press_key(ck); lseq=""
-                                self.root.after(0,self.log,f"> Cast ({ck.upper()})!")
+                            # #2 Cast ใน Thread แยก → scan loop ไม่หยุด
+                            def _cast():
+                                time.sleep(cd+random.uniform(0.2,0.8))
+                                if self.running:
+                                    press_key(ck)
+                                    self.root.after(0,self.log,f"> Cast ({ck.upper()})!")
+                            threading.Thread(target=_cast,daemon=True).start()
+                            lseq=""
                         else: time.sleep(0.6+random.uniform(0.1,0.3))
                     else: time.sleep(0.03)
                 else: time.sleep(0.04)

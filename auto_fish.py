@@ -91,12 +91,39 @@ def grab(r):
 
 # ═══ OCR ═══
 VALID = set("qweasd")
+def read_slot_single(gray_slot):
+    """อ่าน 1 ตัวอักษรจาก slot เดี่ยว (PSM 10)"""
+    if gray_slot is None or gray_slot.size < 20: return None
+    big = cv2.resize(gray_slot, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+    for method in range(2):
+        try:
+            if method == 0:
+                _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+            else:
+                _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+                t = cv2.bitwise_not(t)
+            if np.count_nonzero(t) > t.size // 2: t = cv2.bitwise_not(t)
+            text = pytesseract.image_to_string(t, config='--psm 10 -c tessedit_char_whitelist=QWEASDqweasd').strip().lower()
+            for c in text:
+                if c in VALID: return c
+        except: continue
+    return None
+
 def read_all(gray, num_keys):
+    """อ่านทั้งแถว + ตรวจซ้ำตัวสุดท้ายแยก"""
     if gray is None or gray.size < 100: return None
+    h, w = gray.shape[:2]
+
+    # ตัดขอบขวา 5% ออก (กัน counter เล้ยเข้ามา)
+    trim = int(w * 0.05)
+    trimmed = gray[:, :w-trim] if trim > 3 else gray
+
     kernel = np.array([[0,-1,0],[-1,5,-1],[0,-1,0]])
-    gray = cv2.filter2D(gray, -1, kernel)
-    gray = cv2.GaussianBlur(gray, (3,3), 0)
-    big = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR)
+    processed = cv2.filter2D(trimmed, -1, kernel)
+    processed = cv2.GaussianBlur(processed, (3,3), 0)
+    big = cv2.resize(processed, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR)
+
+    # อ่านทั้งแถว (PSM 7)
     for method in range(3):
         try:
             if method == 0:
@@ -109,8 +136,27 @@ def read_all(gray, num_keys):
             if np.count_nonzero(t) > t.size // 2: t = cv2.bitwise_not(t)
             text = pytesseract.image_to_string(t, config='--psm 7 -c tessedit_char_whitelist=QWEASDqweasd').strip().lower()
             chars = [c for c in text if c in VALID]
-            if len(chars) == num_keys and all(c in VALID for c in chars): return chars
+
+            if len(chars) == num_keys and all(c in VALID for c in chars):
+                # ตรวจซ้ำตัวสุดท้ายด้วย PSM 10 (แยก slot)
+                sw = w // num_keys
+                last_slot = gray[:, (num_keys-1)*sw:]
+                last_char = read_slot_single(last_slot)
+                if last_char and last_char != chars[-1]:
+                    chars[-1] = last_char  # แก้ตัวสุดท้าย
+                return chars
         except: continue
+
+    # Fallback: อ่านทีละ slot (ถ้าอ่านทั้งแถวไม่ได้)
+    sw = w // num_keys
+    chars = []
+    for i in range(num_keys):
+        pad = max(sw // 10, 2)
+        slot = gray[:, max(0, i*sw-pad):min(w, (i+1)*sw+pad)]
+        c = read_slot_single(slot)
+        chars.append(c)
+    if all(c is not None for c in chars):
+        return chars
     return None
 
 def make_debug(frame, keys, num):

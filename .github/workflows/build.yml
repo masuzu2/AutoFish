@@ -1,0 +1,56 @@
+name: Build AutoFish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install
+        run: pip install keyboard mss opencv-python numpy Pillow pytesseract pyinstaller
+
+      - name: Build EXE
+        run: |
+          pyinstaller --noconfirm --onefile --windowed `
+            --name "AutoFish" `
+            --add-data "logo.png;." `
+            --add-data "mascot.png;." `
+            --hidden-import=PIL `
+            --hidden-import=PIL.Image `
+            --hidden-import=PIL.ImageTk `
+            --hidden-import=numpy `
+            --hidden-import=cv2 `
+            --hidden-import=mss `
+            --hidden-import=pytesseract `
+            --hidden-import=keyboard `
+            --collect-all mss `
+            auto_fish.py
+        shell: pwsh
+
+      - name: Package
+        run: |
+          mkdir release
+          copy dist\AutoFish.exe release\
+          copy logo.png release\
+          copy mascot.png release\
+          Compress-Archive -Path "release\*" -DestinationPath AutoFish.zip -Force
+        shell: pwsh
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoFish
+          path: AutoFish.zip

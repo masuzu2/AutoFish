@@ -1,6 +1,6 @@
 """
-AutoFish by Herlove v2.0
-Cyberpunk Neon Fishing Macro
+AutoFish by Herlove v3.0
+Ultimate FiveM Fishing Macro
 """
 
 import time, sys, os, json, threading, ctypes, random
@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+VERSION = "3.0"
 
 # ═══ Auto Admin ═══
 def is_admin():
@@ -36,32 +37,32 @@ for p in [r"C:\Program Files\Tesseract-OCR\tesseract.exe",
           r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"]:
     if os.path.exists(p): pytesseract.pytesseract.tesseract_cmd = p; break
 
-# ═══ SendInput Scancode ═══
+# ═══ SendInput Scancode (Hardware - FiveM) ═══
 SCAN = {'q':0x10,'w':0x11,'e':0x12,'r':0x13,'a':0x1E,'s':0x1F,'d':0x20,'f':0x21,'space':0x39}
 if sys.platform == 'win32':
     PUL = ctypes.POINTER(ctypes.c_ulong)
-    class KEYBDINPUT(ctypes.Structure):
+    class KI(ctypes.Structure):
         _fields_=[("wVk",ctypes.c_ushort),("wScan",ctypes.c_ushort),("dwFlags",ctypes.c_ulong),("time",ctypes.c_ulong),("dwExtraInfo",PUL)]
-    class HARDWAREINPUT(ctypes.Structure):
+    class HI(ctypes.Structure):
         _fields_=[("uMsg",ctypes.c_ulong),("wParamL",ctypes.c_short),("wParamH",ctypes.c_ushort)]
-    class MOUSEINPUT(ctypes.Structure):
+    class MI(ctypes.Structure):
         _fields_=[("dx",ctypes.c_long),("dy",ctypes.c_long),("mouseData",ctypes.c_ulong),("dwFlags",ctypes.c_ulong),("time",ctypes.c_ulong),("dwExtraInfo",PUL)]
-    class INPUT_UNION(ctypes.Union):
-        _fields_=[("ki",KEYBDINPUT),("mi",MOUSEINPUT),("hi",HARDWAREINPUT)]
-    class INPUT(ctypes.Structure):
-        _fields_=[("type",ctypes.c_ulong),("ii",INPUT_UNION)]
+    class IU(ctypes.Union):
+        _fields_=[("ki",KI),("mi",MI),("hi",HI)]
+    class INP(ctypes.Structure):
+        _fields_=[("type",ctypes.c_ulong),("ii",IU)]
 
 def press_key(key):
     sc = SCAN.get(key.lower())
     if not sc or sys.platform != 'win32': return False
     try:
-        extra = ctypes.c_ulong(0)
-        ii = INPUT_UNION(); ii.ki = KEYBDINPUT(0, sc, 0x0008, 0, ctypes.pointer(extra))
-        x = INPUT(1, ii)
+        ex = ctypes.c_ulong(0)
+        ii = IU(); ii.ki = KI(0, sc, 0x0008, 0, ctypes.pointer(ex))
+        x = INP(1, ii)
         ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
         time.sleep(0.05)
-        ii2 = INPUT_UNION(); ii2.ki = KEYBDINPUT(0, sc, 0x0008|0x0002, 0, ctypes.pointer(extra))
-        x2 = INPUT(1, ii2)
+        ii2 = IU(); ii2.ki = KI(0, sc, 0x0008|0x0002, 0, ctypes.pointer(ex))
+        x2 = INP(1, ii2)
         ctypes.windll.user32.SendInput(1, ctypes.pointer(x2), ctypes.sizeof(x2))
         return True
     except: return False
@@ -89,19 +90,16 @@ def grab(r):
     except: pass
     return None
 
-# ═══ OCR ═══
+# ═══ OCR Engine ═══
 VALID = set("qweasd")
-def read_slot_single(gray_slot):
-    """อ่าน 1 ตัวอักษรจาก slot เดี่ยว (PSM 10)"""
+
+def read_slot(gray_slot):
     if gray_slot is None or gray_slot.size < 20: return None
     big = cv2.resize(gray_slot, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    for method in range(2):
+    for m in range(2):
         try:
-            if method == 0:
-                _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-            else:
-                _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-                t = cv2.bitwise_not(t)
+            _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+            if m == 1: t = cv2.bitwise_not(t)
             if np.count_nonzero(t) > t.size // 2: t = cv2.bitwise_not(t)
             text = pytesseract.image_to_string(t, config='--psm 10 -c tessedit_char_whitelist=QWEASDqweasd').strip().lower()
             for c in text:
@@ -110,11 +108,10 @@ def read_slot_single(gray_slot):
     return None
 
 def read_all(gray, num_keys):
-    """อ่านทั้งแถว + ตรวจซ้ำตัวสุดท้ายแยก"""
     if gray is None or gray.size < 100: return None
     h, w = gray.shape[:2]
 
-    # ตัดขอบขวา 5% ออก (กัน counter เล้ยเข้ามา)
+    # ตัดขอบขวา 5%
     trim = int(w * 0.05)
     trimmed = gray[:, :w-trim] if trim > 3 else gray
 
@@ -123,40 +120,34 @@ def read_all(gray, num_keys):
     processed = cv2.GaussianBlur(processed, (3,3), 0)
     big = cv2.resize(processed, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR)
 
-    # อ่านทั้งแถว (PSM 7)
-    for method in range(3):
+    for m in range(3):
         try:
-            if method == 0:
-                _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-            elif method == 1:
+            if m == 0: _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+            elif m == 1:
                 _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
                 t = cv2.bitwise_not(t)
-            else:
-                _, t = cv2.threshold(big, 180, 255, cv2.THRESH_BINARY)
+            else: _, t = cv2.threshold(big, 180, 255, cv2.THRESH_BINARY)
             if np.count_nonzero(t) > t.size // 2: t = cv2.bitwise_not(t)
             text = pytesseract.image_to_string(t, config='--psm 7 -c tessedit_char_whitelist=QWEASDqweasd').strip().lower()
             chars = [c for c in text if c in VALID]
-
             if len(chars) == num_keys and all(c in VALID for c in chars):
-                # ตรวจซ้ำตัวสุดท้ายด้วย PSM 10 (แยก slot)
+                # ตรวจซ้ำตัวสุดท้าย
                 sw = w // num_keys
                 last_slot = gray[:, (num_keys-1)*sw:]
-                last_char = read_slot_single(last_slot)
+                last_char = read_slot(last_slot)
                 if last_char and last_char != chars[-1]:
-                    chars[-1] = last_char  # แก้ตัวสุดท้าย
+                    chars[-1] = last_char
                 return chars
         except: continue
 
-    # Fallback: อ่านทีละ slot (ถ้าอ่านทั้งแถวไม่ได้)
+    # Fallback: ทีละ slot
     sw = w // num_keys
     chars = []
     for i in range(num_keys):
-        pad = max(sw // 10, 2)
-        slot = gray[:, max(0, i*sw-pad):min(w, (i+1)*sw+pad)]
-        c = read_slot_single(slot)
-        chars.append(c)
-    if all(c is not None for c in chars):
-        return chars
+        pad = max(sw//10, 2)
+        slot = gray[:, max(0,i*sw-pad):min(w,(i+1)*sw+pad)]
+        chars.append(read_slot(slot))
+    if all(c is not None for c in chars): return chars
     return None
 
 def make_debug(frame, keys, num):
@@ -188,26 +179,16 @@ def save_cfg(**kw):
 load_cfg()
 
 # ═══ Theme ═══
-BG      = "#020617"
-BG2     = "#0a1128"
-CARD    = "#0f172a"
-CARD2   = "#1e293b"
-ACCENT  = "#22d3ee"
-GLOW    = "#0ea5e9"
-GREEN   = "#4ade80"
-GREEN2  = "#22c55e"
-RED     = "#f87171"
-ORANGE  = "#fb923c"
-PURPLE  = "#a78bfa"
-DIM     = "#334155"
-DIM2    = "#1e293b"
-WHITE   = "#e2e8f0"
+BG="#020617"; BG2="#0a1128"; CARD="#0f172a"; CARD2="#1e293b"
+ACCENT="#22d3ee"; GLOW="#0ea5e9"; GREEN="#4ade80"; GREEN2="#22c55e"
+RED="#f87171"; ORANGE="#fb923c"; PURPLE="#a78bfa"
+DIM="#334155"; DIM2="#1e293b"; WHITE="#e2e8f0"
 
 class App:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("AutoFish by Herlove")
-        self.root.geometry("500x750")
+        self.root.geometry("500x780")
         self.root.configure(bg=BG)
         self.root.resizable(False, False)
         self.root.attributes("-topmost", True)
@@ -216,9 +197,14 @@ class App:
         self.session_start = 0
         self.debug_img = None
         self.fish_count = 0
+        self.scan_count = 0
         self.last_time = time.time()
+        self.last_seq_display = ""
         self.num_keys = tk.IntVar(value=load_cfg().get("num_keys", 5))
         self.key_delay = tk.IntVar(value=60)
+        self.auto_cast = tk.BooleanVar(value=load_cfg().get("auto_cast", False))
+        self.cast_key = tk.StringVar(value=load_cfg().get("cast_key", "e"))
+        self.cast_delay = tk.IntVar(value=load_cfg().get("cast_delay", 5))
 
         try:
             ico = os.path.join(SCRIPT_DIR, "logo.png")
@@ -229,230 +215,182 @@ class App:
 
         self._build()
         self._preview_loop()
-        self._status_blink()
+        self._tick()
         self.root.protocol("WM_DELETE_WINDOW", self._quit)
 
     def _build(self):
-        # ════════════════ HEADER ════════════════
-        hdr = tk.Frame(self.root, bg=BG)
-        hdr.pack(fill=tk.X, padx=20, pady=(14,0))
-
-        # Mascot
+        # ═══ HEADER ═══
+        hdr = tk.Frame(self.root, bg=BG); hdr.pack(fill=tk.X, padx=20, pady=(14,0))
         try:
             lp = os.path.join(SCRIPT_DIR, "mascot.png")
             if not os.path.exists(lp): lp = os.path.join(SCRIPT_DIR, "logo.png")
             if os.path.exists(lp):
-                li = Image.open(lp).resize((60, 60), Image.LANCZOS)
+                li = Image.open(lp).resize((60,60),Image.LANCZOS)
                 self._logo = ImageTk.PhotoImage(li)
-                logo_frame = tk.Frame(hdr, bg=CARD, highlightbackground=GLOW, highlightthickness=1)
-                logo_frame.pack(side=tk.LEFT, padx=(0,14))
-                tk.Label(logo_frame, image=self._logo, bg=CARD, padx=3, pady=3).pack()
+                lf = tk.Frame(hdr, bg=CARD, highlightbackground=GLOW, highlightthickness=1)
+                lf.pack(side=tk.LEFT, padx=(0,14))
+                tk.Label(lf, image=self._logo, bg=CARD, padx=3, pady=3).pack()
         except: pass
 
-        # Title
-        tf = tk.Frame(hdr, bg=BG)
-        tf.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        tk.Label(tf, text="AutoFish", bg=BG, fg=WHITE,
-                 font=("Segoe UI", 24, "bold")).pack(anchor="w")
+        tf = tk.Frame(hdr, bg=BG); tf.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        tk.Label(tf, text="AutoFish", bg=BG, fg=WHITE, font=("Segoe UI",24,"bold")).pack(anchor="w")
+        sub = tk.Frame(tf, bg=BG); sub.pack(anchor="w")
+        tk.Label(sub, text="FISHING SYSTEM", bg=BG, fg=ACCENT, font=("Consolas",9,"bold")).pack(side=tk.LEFT)
+        tk.Label(sub, text=f" v{VERSION}", bg=BG, fg=DIM, font=("Consolas",9)).pack(side=tk.LEFT)
+        tk.Label(tf, text="by Herlove", bg=BG, fg=DIM, font=("Segoe UI",8)).pack(anchor="w")
 
-        sub = tk.Frame(tf, bg=BG)
-        sub.pack(anchor="w")
-        tk.Label(sub, text="FISHING SYSTEM", bg=BG, fg=ACCENT,
-                 font=("Consolas", 9, "bold")).pack(side=tk.LEFT)
-        tk.Label(sub, text=" v2.0", bg=BG, fg=DIM,
-                 font=("Consolas", 9)).pack(side=tk.LEFT)
-
-        tk.Label(tf, text="by Herlove", bg=BG, fg=DIM,
-                 font=("Segoe UI", 8)).pack(anchor="w")
-
-        # Status badge
-        self.status_frame = tk.Frame(hdr, bg=CARD, highlightbackground=DIM, highlightthickness=1)
-        self.status_frame.pack(side=tk.RIGHT)
-        self.lbl_dot = tk.Label(self.status_frame, text="  ", bg=DIM, font=("Segoe UI",4))
+        # Status
+        self.sf = tk.Frame(hdr, bg=CARD, highlightbackground=DIM, highlightthickness=1)
+        self.sf.pack(side=tk.RIGHT)
+        self.lbl_dot = tk.Label(self.sf, text=" ", bg=DIM, font=("Segoe UI",3))
         self.lbl_dot.pack(side=tk.LEFT, padx=(6,4), pady=6)
-        self.lbl_st = tk.Label(self.status_frame, text="OFFLINE", bg=CARD, fg=DIM,
-                                font=("Consolas", 9, "bold"))
+        self.lbl_st = tk.Label(self.sf, text="OFFLINE", bg=CARD, fg=DIM, font=("Consolas",9,"bold"))
         self.lbl_st.pack(side=tk.LEFT, padx=(0,8), pady=6)
 
-        # ════════════════ GRADIENT LINE ════════════════
+        # Gradient
         line = tk.Canvas(self.root, bg=BG, height=2, highlightthickness=0)
         line.pack(fill=tk.X, padx=20, pady=(10,0))
         for i in range(460):
-            t = i / 460
-            r = int(14 + (74-14)*t)
-            g = int(165 + (222-165)*t)
-            b = int(233 + (128-233)*t)
-            line.create_line(i+20, 0, i+20, 2, fill=f"#{r:02x}{g:02x}{b:02x}")
+            t=i/460; r=int(14+(74-14)*t); g=int(165+(222-165)*t); b=int(233+(128-233)*t)
+            line.create_line(i+20,0,i+20,2, fill=f"#{r:02x}{g:02x}{b:02x}")
 
-        # ════════════════ PREVIEW ════════════════
-        prev_outer = tk.Frame(self.root, bg=GLOW)
-        prev_outer.pack(fill=tk.X, padx=20, pady=(10,0))
-        prev_inner = tk.Frame(prev_outer, bg=BG2)
-        prev_inner.pack(fill=tk.X, padx=1, pady=1)
-        self.preview = tk.Label(prev_inner, bg="#030810",
-            text="  Select Region (F6) to start  ", fg=DIM,
-            font=("Consolas", 9))
-        self.preview.pack(fill=tk.X, ipady=35)
+        # ═══ PREVIEW ═══
+        po = tk.Frame(self.root, bg=GLOW); po.pack(fill=tk.X, padx=20, pady=(10,0))
+        pi = tk.Frame(po, bg=BG2); pi.pack(fill=tk.X, padx=1, pady=1)
+        self.preview = tk.Label(pi, bg="#030810", text="  F6 Select Region  ", fg=DIM, font=("Consolas",9))
+        self.preview.pack(fill=tk.X, ipady=32)
 
-        # ════════════════ START BUTTON ════════════════
-        btn_outer = tk.Frame(self.root, bg=GREEN2)
-        btn_outer.pack(fill=tk.X, padx=20, pady=(8,0))
-        self.btn = tk.Button(btn_outer, text="START", bg=GREEN, fg=BG,
-            font=("Segoe UI", 16, "bold"), relief="flat", pady=8, cursor="hand2",
-            activebackground=GREEN2, bd=0, command=self.toggle)
+        # Last sequence
+        self.lbl_seq = tk.Label(self.root, text="", bg=BG, fg=ACCENT, font=("Consolas",14,"bold"))
+        self.lbl_seq.pack(pady=(4,0))
+
+        # ═══ START ═══
+        bo = tk.Frame(self.root, bg=GREEN2); bo.pack(fill=tk.X, padx=20, pady=(4,0))
+        self.btn = tk.Button(bo, text="START", bg=GREEN, fg=BG, font=("Segoe UI",16,"bold"),
+            relief="flat", pady=8, cursor="hand2", activebackground=GREEN2, bd=0, command=self.toggle)
         self.btn.pack(fill=tk.X, padx=1, pady=1)
-        self.btn.bind("<Enter>", self._btn_hover)
-        self.btn.bind("<Leave>", self._btn_leave)
-        self.btn_outer = btn_outer
+        self.btn.bind("<Enter>", lambda e: self.btn.config(bg=GREEN2 if not self.running else "#ef4444"))
+        self.btn.bind("<Leave>", lambda e: self.btn.config(bg=GREEN if not self.running else RED))
+        self.bo = bo
+        tk.Label(self.root, text="F5", bg=BG, fg=DIM2, font=("Consolas",7)).pack(pady=(1,0))
 
-        # Hotkey hint
-        tk.Label(self.root, text="F5", bg=BG, fg=DIM2,
-                 font=("Consolas", 8)).pack(pady=(2,0))
-
-        # ════════════════ STATS DASHBOARD ════════════════
+        # ═══ STATS ═══
         dash = tk.Frame(self.root, bg=CARD, highlightbackground=DIM2, highlightthickness=1)
-        dash.pack(fill=tk.X, padx=20, pady=(6,0))
-        di = tk.Frame(dash, bg=CARD)
-        di.pack(fill=tk.X, padx=6, pady=10)
+        dash.pack(fill=tk.X, padx=20, pady=(4,0))
+        di = tk.Frame(dash, bg=CARD); di.pack(fill=tk.X, padx=6, pady=8)
 
-        # KEYS
-        self._stat_block(di, "lbl_cnt", "0", "KEYS PRESSED", ACCENT)
+        for attr, init, label, color in [
+            ("lbl_cnt","0","KEYS",ACCENT), ("lbl_fish","0","FISH",GLOW),
+            ("lbl_rate","0%","RATE",GREEN), ("lbl_fps","0.0","FPS",PURPLE),
+            ("lbl_timer","00:00","TIME",ORANGE)
+        ]:
+            if attr != "lbl_cnt":
+                tk.Frame(di, bg=DIM2, width=1).pack(side=tk.LEFT, fill=tk.Y, padx=4)
+            f = tk.Frame(di, bg=CARD); f.pack(side=tk.LEFT, expand=True)
+            lbl = tk.Label(f, text=init, bg=CARD, fg=color, font=("Consolas",16,"bold"))
+            lbl.pack()
+            tk.Label(f, text=label, bg=CARD, fg=DIM, font=("Consolas",6,"bold")).pack()
+            setattr(self, attr, lbl)
 
-        # Divider
-        tk.Frame(di, bg=DIM2, width=1).pack(side=tk.LEFT, fill=tk.Y, padx=8)
-
-        # FISH
-        self._stat_block(di, "lbl_fish", "0", "FISH CAUGHT", GLOW)
-
-        # Divider
-        tk.Frame(di, bg=DIM2, width=1).pack(side=tk.LEFT, fill=tk.Y, padx=8)
-
-        # FPS
-        self._stat_block(di, "lbl_fps", "0.0", "SCAN FPS", PURPLE)
-
-        # ════════════════ CONTROLS ════════════════
+        # ═══ CONTROLS ═══
         ctrl = tk.Frame(self.root, bg=CARD, highlightbackground=DIM2, highlightthickness=1)
-        ctrl.pack(fill=tk.X, padx=20, pady=(6,0))
-        ci = tk.Frame(ctrl, bg=CARD)
-        ci.pack(fill=tk.X, padx=6, pady=8)
-
-        self._ctrl_btn(ci, "Select Region", ACCENT, self.pick_region)
-        self._ctrl_btn(ci, "Test Read", GREEN, self.test_read)
-        self._ctrl_btn(ci, "Test Press", PURPLE, self.test_press)
-
-        self.lbl_reg = tk.Label(ci, text="not set", bg=CARD, fg=ORANGE,
-                                 font=("Consolas", 8, "bold"))
+        ctrl.pack(fill=tk.X, padx=20, pady=(4,0))
+        ci = tk.Frame(ctrl, bg=CARD); ci.pack(fill=tk.X, padx=6, pady=6)
+        for txt, clr, cmd in [("Select (F6)",ACCENT,self.pick_region),("Test Read",GREEN,self.test_read),("Test Key",PURPLE,self.test_press)]:
+            b = tk.Button(ci, text=txt, bg=BG2, fg=clr, font=("Segoe UI",8,"bold"),
+                relief="flat", padx=8, pady=3, cursor="hand2", activebackground=CARD2, command=cmd)
+            b.pack(side=tk.LEFT, padx=2)
+            b.bind("<Enter>", lambda e, b=b: b.config(bg=CARD2))
+            b.bind("<Leave>", lambda e, b=b: b.config(bg=BG2))
+        self.lbl_reg = tk.Label(ci, text="not set", bg=CARD, fg=ORANGE, font=("Consolas",8,"bold"))
         self.lbl_reg.pack(side=tk.RIGHT, padx=4)
-        tk.Label(ci, text="F6", bg=CARD, fg=DIM2, font=("Consolas",7)).pack(side=tk.RIGHT)
 
-        # ════════════════ SETTINGS ════════════════
+        # ═══ SETTINGS ═══
         stf = tk.Frame(self.root, bg=CARD, highlightbackground=DIM2, highlightthickness=1)
-        stf.pack(fill=tk.X, padx=20, pady=(6,0))
+        stf.pack(fill=tk.X, padx=20, pady=(4,0))
+        tk.Label(stf, text="  SETTINGS", bg=CARD, fg=DIM, font=("Consolas",7,"bold")).pack(anchor="w", padx=6, pady=(4,0))
+        self._sl(stf, "Keys / Lane", self.num_keys, 2, 10, ACCENT)
+        self._sl(stf, "Key Delay (ms)", self.key_delay, 30, 200, GREEN)
 
-        tk.Label(stf, text="  SETTINGS", bg=CARD, fg=DIM,
-                 font=("Consolas", 7, "bold"), anchor="w").pack(fill=tk.X, padx=6, pady=(6,0))
+        # Auto cast
+        acf = tk.Frame(stf, bg=CARD); acf.pack(fill=tk.X, padx=10, pady=(2,6))
+        tk.Checkbutton(acf, text="Auto Cast Rod", variable=self.auto_cast, bg=CARD, fg=WHITE,
+            selectcolor=BG, activebackground=CARD, font=("Segoe UI",9),
+            command=self._save_settings).pack(side=tk.LEFT)
+        tk.Label(acf, text="Key:", bg=CARD, fg=DIM, font=("Segoe UI",8)).pack(side=tk.LEFT, padx=(10,2))
+        tk.Entry(acf, textvariable=self.cast_key, bg=BG, fg=ACCENT, font=("Consolas",10,"bold"),
+            width=3, relief="flat", justify="center", insertbackground=ACCENT).pack(side=tk.LEFT)
+        tk.Label(acf, text="Wait:", bg=CARD, fg=DIM, font=("Segoe UI",8)).pack(side=tk.LEFT, padx=(8,2))
+        self._sl_mini(acf, self.cast_delay, 1, 20, ORANGE)
+        tk.Label(acf, text="s", bg=CARD, fg=DIM, font=("Segoe UI",8)).pack(side=tk.LEFT)
 
-        self._slider(stf, "Keys / Lane", self.num_keys, 2, 10, ACCENT)
-        self._slider(stf, "Key Delay (ms)", self.key_delay, 30, 200, GREEN)
+        # ═══ LOG ═══
+        lh = tk.Frame(self.root, bg=BG); lh.pack(fill=tk.X, padx=22, pady=(6,2))
+        tk.Label(lh, text="> SYSTEM LOG", bg=BG, fg=DIM, font=("Consolas",7,"bold")).pack(side=tk.LEFT)
+        tk.Button(lh, text="clear", bg=BG, fg=DIM2, font=("Consolas",7),
+            relief="flat", cursor="hand2", command=self._clear_log).pack(side=tk.RIGHT)
 
-        # ════════════════ LOG ════════════════
-        log_hdr = tk.Frame(self.root, bg=BG)
-        log_hdr.pack(fill=tk.X, padx=22, pady=(8,2))
-        tk.Label(log_hdr, text="> SYSTEM LOG", bg=BG, fg=DIM,
-                 font=("Consolas", 7, "bold")).pack(side=tk.LEFT)
-        tk.Button(log_hdr, text="clear", bg=BG, fg=DIM2, font=("Consolas",7),
-                  relief="flat", cursor="hand2", command=self._clear_log).pack(side=tk.RIGHT)
-
-        log_outer = tk.Frame(self.root, bg=DIM2)
-        log_outer.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,0))
-        self.log_box = tk.Text(log_outer, bg="#030810", fg=GREEN,
-            font=("Consolas", 9), relief="flat", wrap=tk.WORD, state=tk.DISABLED,
-            padx=10, pady=8, insertbackground=ACCENT, selectbackground=DIM2)
+        lo = tk.Frame(self.root, bg=DIM2); lo.pack(fill=tk.BOTH, expand=True, padx=20)
+        self.log_box = tk.Text(lo, bg="#030810", fg=GREEN, font=("Consolas",9),
+            relief="flat", wrap=tk.WORD, state=tk.DISABLED, padx=10, pady=6)
         self.log_box.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
-        self.log_box.tag_configure("accent", foreground=ACCENT)
-        self.log_box.tag_configure("warn", foreground=ORANGE)
-        self.log_box.tag_configure("dim", foreground=DIM)
 
-        # ════════════════ FOOTER ════════════════
-        ft = tk.Frame(self.root, bg=BG)
-        ft.pack(fill=tk.X, padx=20, pady=(6,8))
-        tk.Label(ft, text="F5 Start/Stop", bg=BG, fg=DIM2,
-                 font=("Consolas", 7)).pack(side=tk.LEFT)
-        tk.Label(ft, text="F6 Region", bg=BG, fg=DIM2,
-                 font=("Consolas", 7)).pack(side=tk.LEFT, padx=8)
-        admin_text = "Admin" if is_admin() else "NOT Admin!"
-        admin_color = DIM2 if is_admin() else RED
-        tk.Label(ft, text=admin_text, bg=BG, fg=admin_color,
-                 font=("Consolas", 7, "bold")).pack(side=tk.RIGHT)
+        # Footer
+        ft = tk.Frame(self.root, bg=BG); ft.pack(fill=tk.X, padx=20, pady=(4,8))
+        tk.Label(ft, text="F5 Start/Stop  |  F6 Region", bg=BG, fg=DIM2, font=("Consolas",7)).pack(side=tk.LEFT)
+        ac = "Admin" if is_admin() else "NOT Admin!"
+        tk.Label(ft, text=ac, bg=BG, fg=DIM2 if is_admin() else RED, font=("Consolas",7,"bold")).pack(side=tk.RIGHT)
 
-        # Keybinds
         self.root.bind("<F5>", lambda e: self.toggle())
         self.root.bind("<F6>", lambda e: self.pick_region())
 
-        # Init log
-        self.log("> AutoFish by Herlove v2.0")
-        self.log(f"> Admin: {'YES' if is_admin() else 'NO - Run as Admin!'}")
+        self.log(f"> AutoFish v{VERSION} by Herlove")
+        self.log(f"> Admin: {'YES' if is_admin() else 'NO!'}")
         try:
             v = pytesseract.get_tesseract_version()
             self.log(f"> Tesseract {v}")
-        except:
-            self.log("> Tesseract: NOT FOUND!")
-        self.log("> Select region (F6) then Start (F5)")
+        except: self.log("> ERROR: Tesseract not found!")
+        if region: self.log(f"> Region loaded: {region['width']}x{region['height']}")
+        self.log("> F6 Select Region → F5 Start")
 
-    # ═══ UI Helpers ═══
-    def _stat_block(self, parent, attr, init_text, label, color):
-        f = tk.Frame(parent, bg=CARD)
-        f.pack(side=tk.LEFT, expand=True)
-        lbl = tk.Label(f, text=init_text, bg=CARD, fg=color,
-                        font=("Consolas", 26, "bold"))
-        lbl.pack()
-        tk.Label(f, text=label, bg=CARD, fg=DIM,
-                 font=("Consolas", 6, "bold")).pack()
-        setattr(self, attr, lbl)
-
-    def _ctrl_btn(self, parent, text, color, cmd):
-        b = tk.Button(parent, text=text, bg=BG2, fg=color,
-            font=("Segoe UI", 8, "bold"), relief="flat", padx=8, pady=3,
-            cursor="hand2", activebackground=CARD2, command=cmd)
-        b.pack(side=tk.LEFT, padx=2)
-        b.bind("<Enter>", lambda e, b=b, c=color: b.config(bg=CARD2))
-        b.bind("<Leave>", lambda e, b=b: b.config(bg=BG2))
-
-    def _slider(self, parent, label, var, lo, hi, color):
-        f = tk.Frame(parent, bg=CARD)
-        f.pack(fill=tk.X, padx=10, pady=3)
-        tk.Label(f, text=label, bg=CARD, fg=WHITE,
-                 font=("Segoe UI", 9)).pack(side=tk.LEFT)
-        vl = tk.Label(f, text=str(var.get()), bg=CARD, fg=color,
-                       font=("Consolas", 10, "bold"), width=4)
+    def _sl(self, p, label, var, lo, hi, color):
+        f = tk.Frame(p, bg=CARD); f.pack(fill=tk.X, padx=10, pady=2)
+        tk.Label(f, text=label, bg=CARD, fg=WHITE, font=("Segoe UI",9)).pack(side=tk.LEFT)
+        vl = tk.Label(f, text=str(var.get()), bg=CARD, fg=color, font=("Consolas",10,"bold"), width=4)
         vl.pack(side=tk.RIGHT)
-        tk.Scale(f, from_=lo, to=hi, orient=tk.HORIZONTAL, variable=var,
-            bg=CARD, fg=CARD, troughcolor=BG, highlightthickness=0,
-            showvalue=False, length=120, sliderlength=14, activebackground=color,
-            command=lambda v, l=vl: l.config(text=str(int(float(v))))).pack(side=tk.RIGHT, padx=4)
+        tk.Scale(f, from_=lo, to=hi, orient=tk.HORIZONTAL, variable=var, bg=CARD, fg=CARD,
+            troughcolor=BG, highlightthickness=0, showvalue=False, length=120, sliderlength=14,
+            activebackground=color, command=lambda v,l=vl:l.config(text=str(int(float(v))))).pack(side=tk.RIGHT, padx=4)
 
-    def _btn_hover(self, e):
-        if self.running:
-            self.btn.config(bg="#ef4444")
-        else:
-            self.btn.config(bg=GREEN2)
+    def _sl_mini(self, p, var, lo, hi, color):
+        vl = tk.Label(p, text=str(var.get()), bg=CARD, fg=color, font=("Consolas",9,"bold"), width=3)
+        vl.pack(side=tk.LEFT, padx=(4,0))
+        tk.Scale(p, from_=lo, to=hi, orient=tk.HORIZONTAL, variable=var, bg=CARD, fg=CARD,
+            troughcolor=BG, highlightthickness=0, showvalue=False, length=60, sliderlength=10,
+            activebackground=color, command=lambda v,l=vl:l.config(text=str(int(float(v))))).pack(side=tk.LEFT)
 
-    def _btn_leave(self, e):
-        if self.running:
-            self.btn.config(bg=RED)
-        else:
-            self.btn.config(bg=GREEN)
-
-    def _status_blink(self):
-        if self.running:
-            cur = self.lbl_dot.cget("bg")
-            self.lbl_dot.config(bg=GREEN if cur == CARD else CARD)
-        self.root.after(600, self._status_blink)
+    def _save_settings(self):
+        save_cfg(auto_cast=self.auto_cast.get(), cast_key=self.cast_key.get(), cast_delay=self.cast_delay.get())
 
     def _clear_log(self):
-        self.log_box.config(state=tk.NORMAL)
-        self.log_box.delete("1.0", tk.END)
+        self.log_box.config(state=tk.NORMAL); self.log_box.delete("1.0",tk.END)
         self.log_box.config(state=tk.DISABLED)
+
+    # ═══ Tick (timer + blink) ═══
+    def _tick(self):
+        if self.running:
+            # Timer
+            e = int(time.time() - self.session_start)
+            m,s = divmod(e,60)
+            self.lbl_timer.config(text=f"{m:02d}:{s:02d}")
+            # Blink
+            cur = self.lbl_dot.cget("bg")
+            self.lbl_dot.config(bg=GREEN if cur == CARD else CARD)
+            # Rate
+            if self.scan_count > 0:
+                rate = int(self.fish_count / self.scan_count * 100) if self.scan_count else 0
+                self.lbl_rate.config(text=f"{min(rate,100)}%")
+        self.root.after(500, self._tick)
 
     # ═══ Region ═══
     def pick_region(self):
@@ -460,110 +398,85 @@ class App:
         if self.running: self.log("> Stop first!"); return
         self.root.iconify(); time.sleep(0.3)
         sel = tk.Toplevel(self.root)
-        sel.overrideredirect(True); sel.attributes("-topmost", True)
-        sel.attributes("-alpha", 0.25)
-        sw, sh = sel.winfo_screenwidth(), sel.winfo_screenheight()
+        sel.overrideredirect(True); sel.attributes("-topmost",True); sel.attributes("-alpha",0.25)
+        sw,sh = sel.winfo_screenwidth(),sel.winfo_screenheight()
         sel.geometry(f"{sw}x{sh}+0+0"); sel.configure(bg="black")
         c = tk.Canvas(sel, bg="black", highlightthickness=0, cursor="cross")
         c.pack(fill=tk.BOTH, expand=True)
-
-        # Guide box
-        c.create_rectangle(sw//2-230, 12, sw//2+230, 85, fill="black", outline=ACCENT, width=2)
-        c.create_text(sw//2, 32, text="Drag over the QTE key boxes",
-            fill=ACCENT, font=("Segoe UI", 14, "bold"))
-        c.create_text(sw//2, 52, text="Do NOT include the counter circle",
-            fill=WHITE, font=("Segoe UI", 10))
-        c.create_text(sw//2, 72, text="ESC = Cancel",
-            fill=DIM, font=("Segoe UI", 9))
-
-        pos = c.create_text(sw//2, 105, text="", fill=ACCENT, font=("Consolas", 12, "bold"))
-        st = {"sx": 0, "sy": 0, "r": None}
-
+        c.create_rectangle(sw//2-230,12,sw//2+230,88, fill="black", outline=ACCENT, width=2)
+        c.create_text(sw//2,30, text="Drag over the QTE key boxes", fill=ACCENT, font=("Segoe UI",14,"bold"))
+        c.create_text(sw//2,52, text="Do NOT include the counter circle", fill=WHITE, font=("Segoe UI",10))
+        c.create_text(sw//2,72, text="ESC = Cancel", fill=DIM, font=("Segoe UI",9))
+        pos = c.create_text(sw//2,105, text="", fill=ACCENT, font=("Consolas",12,"bold"))
+        st = {"sx":0,"sy":0,"r":None}
         c.bind("<Motion>", lambda e: c.itemconfig(pos, text=f"X: {e.x}   Y: {e.y}"))
         def _p(e):
-            st["sx"], st["sy"] = e.x, e.y
+            st["sx"],st["sy"]=e.x,e.y
             if st["r"]: c.delete(st["r"])
-            st["r"] = c.create_rectangle(e.x, e.y, e.x, e.y, outline=ACCENT, width=3)
+            st["r"]=c.create_rectangle(e.x,e.y,e.x,e.y, outline=ACCENT, width=3)
         def _d(e):
-            c.coords(st["r"], st["sx"], st["sy"], e.x, e.y)
-            c.delete("sz")
-            w, h = abs(e.x - st["sx"]), abs(e.y - st["sy"])
-            c.create_text((st["sx"]+e.x)//2, min(st["sy"], e.y)-16,
-                text=f"{w} x {h}", fill=ACCENT, font=("Consolas", 14, "bold"), tags="sz")
+            c.coords(st["r"],st["sx"],st["sy"],e.x,e.y); c.delete("sz")
+            c.create_text((st["sx"]+e.x)//2,min(st["sy"],e.y)-16,
+                text=f"{abs(e.x-st['sx'])} x {abs(e.y-st['sy'])}", fill=ACCENT, font=("Consolas",14,"bold"), tags="sz")
         def _r(e):
             global region
-            x1, y1 = min(st["sx"], e.x), min(st["sy"], e.y)
-            x2, y2 = max(st["sx"], e.x), max(st["sy"], e.y)
-            if (x2-x1) > 10 and (y2-y1) > 10:
-                region = {"left": x1, "top": y1, "width": x2-x1, "height": y2-y1}
-                save_cfg()
+            x1,y1=min(st["sx"],e.x),min(st["sy"],e.y); x2,y2=max(st["sx"],e.x),max(st["sy"],e.y)
+            if (x2-x1)>10 and (y2-y1)>10:
+                region={"left":x1,"top":y1,"width":x2-x1,"height":y2-y1}; save_cfg()
                 self.lbl_reg.config(text=f"{x2-x1}x{y2-y1}", fg=GREEN)
-                self.log(f"> Region set: {x2-x1}x{y2-y1} @ ({x1},{y1})")
+                self.log(f"> Region: {x2-x1}x{y2-y1} @ ({x1},{y1})")
             sel.destroy(); self.root.deiconify()
-
-        c.bind("<ButtonPress-1>", _p)
-        c.bind("<B1-Motion>", _d)
-        c.bind("<ButtonRelease-1>", _r)
-        sel.bind("<Escape>", lambda e: (sel.destroy(), self.root.deiconify()))
+        c.bind("<ButtonPress-1>",_p); c.bind("<B1-Motion>",_d); c.bind("<ButtonRelease-1>",_r)
+        sel.bind("<Escape>", lambda e:(sel.destroy(),self.root.deiconify()))
         sel.after(50, sel.focus_force)
 
-    # ═══ Test ═══
     def test_read(self):
-        if not region: self.log("> Select region first!"); return
+        if not region: self.log("> Select region!"); return
         t0 = time.time()
         frame = grab(region)
         if frame is None: self.log("> Capture failed!"); return
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         keys = read_all(gray, self.num_keys.get())
         ms = int((time.time()-t0)*1000)
-        self.debug_img = make_debug(frame, keys, self.num_keys.get())
-        self._show_debug()
-        if keys:
-            self.log(f"> Read ({ms}ms): {' '.join(k.upper() for k in keys)}")
-        else:
-            self.log(f"> Failed ({ms}ms) - adjust region")
+        self.debug_img = make_debug(frame, keys, self.num_keys.get()); self._show_debug()
+        if keys: self.log(f"> Read ({ms}ms): {' '.join(k.upper() for k in keys)}")
+        else: self.log(f"> Failed ({ms}ms) - adjust region")
 
     def test_press(self):
         self.log("> Press D+S in 3s (click game!)")
         def _do():
-            time.sleep(3)
-            press_key('d'); time.sleep(0.2); press_key('s')
+            time.sleep(3); press_key('d'); time.sleep(0.2); press_key('s')
             self.root.after(0, self.log, "> Pressed D S!")
         threading.Thread(target=_do, daemon=True).start()
 
-    # ═══ Toggle ═══
     def toggle(self):
-        if self.running:
-            self.running = False
+        if self.running: self.running = False
         else:
-            if not region:
-                messagebox.showwarning("AutoFish", "Select Region first (F6)!")
-                return
+            if not region: messagebox.showwarning("AutoFish","Select Region (F6)!"); return
             self.running = True
+            self._save_settings()
             save_cfg(num_keys=self.num_keys.get())
             self.btn.config(text="STOP", bg=RED, activebackground="#ef4444")
-            self.btn_outer.config(bg="#b91c1c")
-            self.lbl_st.config(text="ACTIVE", fg=GREEN)
-            self.lbl_dot.config(bg=GREEN)
-            self.status_frame.config(highlightbackground=GREEN)
+            self.bo.config(bg="#b91c1c")
+            self.lbl_st.config(text="ACTIVE", fg=GREEN); self.lbl_dot.config(bg=GREEN)
+            self.sf.config(highlightbackground=GREEN)
             self.log("> Switch to game in 3s!")
             threading.Thread(target=self._run, daemon=True).start()
 
-    # ═══ Main Loop ═══
+    # ═══ MAIN LOOP ═══
     def _run(self):
         num = self.num_keys.get()
         kd = self.key_delay.get() / 1000
-        self.session_keys = 0
-        self.session_start = time.time()
-        self.fish_count = 0
-        self.last_time = time.time()
+        ac = self.auto_cast.get()
+        ck = self.cast_key.get().lower()
+        cd = self.cast_delay.get()
+        self.session_keys = 0; self.session_start = time.time()
+        self.fish_count = 0; self.scan_count = 0; self.last_time = time.time()
 
         test = grab(region)
         if test is None:
             self.root.after(0, self.log, "> Capture failed!")
-            self.running = False
-            self.root.after(0, self._reset)
-            return
+            self.running = False; self.root.after(0, self._reset); return
 
         time.sleep(3)
         self.root.after(0, self.log, "> Scanning...")
@@ -578,6 +491,7 @@ class App:
                 now = time.time()
                 fps = 1.0 / max(now - self.last_time, 0.001)
                 self.last_time = now
+                self.scan_count += 1
 
                 keys = read_all(gray, num)
                 self.debug_img = make_debug(frame, keys, num)
@@ -588,7 +502,9 @@ class App:
                         self.fish_count += 1
                         display = " ".join(k.upper() for k in keys)
                         self.root.after(0, self.log, f"> #{self.fish_count} {display}")
+                        self.root.after(0, self.lbl_seq.config, {"text": display})
 
+                        # Anti-ban
                         if random.random() < 0.05:
                             time.sleep(random.uniform(0.5, 1.5))
 
@@ -599,14 +515,23 @@ class App:
                             time.sleep(kd + random.uniform(0.02, 0.08))
 
                         if sys.platform == 'win32':
-                            try:
-                                import winsound
-                                winsound.Beep(800, 80)
+                            try: import winsound; winsound.Beep(800, 80)
                             except: pass
 
                         self.root.after(0, self._update_stats, fps)
                         last_seq = seq
-                        time.sleep(0.8 + random.uniform(0.1, 0.3))
+
+                        # Auto cast rod
+                        if ac and self.running:
+                            self.root.after(0, self.log, f"> Wait {cd}s then cast...")
+                            time.sleep(cd + random.uniform(0.2, 0.8))
+                            if self.running:
+                                press_key(ck)
+                                self.root.after(0, self.log, f"> Cast ({ck.upper()})!")
+                                time.sleep(2.0 + random.uniform(0.3, 0.7))
+                                last_seq = ""
+                        else:
+                            time.sleep(0.8 + random.uniform(0.1, 0.3))
                     else:
                         time.sleep(0.04)
                 else:
@@ -625,24 +550,21 @@ class App:
 
     def _reset(self):
         self.btn.config(text="START", bg=GREEN, activebackground=GREEN2)
-        self.btn_outer.config(bg=GREEN2)
-        self.lbl_st.config(text="OFFLINE", fg=DIM)
-        self.lbl_dot.config(bg=DIM)
-        self.status_frame.config(highlightbackground=DIM)
+        self.bo.config(bg=GREEN2)
+        self.lbl_st.config(text="OFFLINE", fg=DIM); self.lbl_dot.config(bg=DIM)
+        self.sf.config(highlightbackground=DIM)
+        self.lbl_seq.config(text="")
         self.log("> Stopped")
 
-    # ═══ Preview ═══
     def _show_debug(self):
         if self.debug_img is None: return
         try:
             rgb = cv2.cvtColor(self.debug_img, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(rgb)
-            w, h = img.size
-            nw = 458; nh = max(int(h * nw / w), 20)
-            img = img.resize((nw, nh), Image.NEAREST)
+            img = Image.fromarray(rgb); w,h = img.size
+            nw=458; nh=max(int(h*nw/w),20)
+            img = img.resize((nw,nh), Image.NEAREST)
             photo = ImageTk.PhotoImage(img)
-            self.preview.config(image=photo, text="")
-            self.preview.image = photo
+            self.preview.config(image=photo, text=""); self.preview.image = photo
         except: pass
 
     def _preview_loop(self):
@@ -654,34 +576,23 @@ class App:
                 if frame is not None:
                     d = make_debug(frame, None, self.num_keys.get())
                     rgb = cv2.cvtColor(d, cv2.COLOR_BGR2RGB)
-                    img = Image.fromarray(rgb)
-                    w, h = img.size
-                    nw = 458; nh = max(int(h * nw / w), 20)
-                    img = img.resize((nw, nh), Image.NEAREST)
+                    img = Image.fromarray(rgb); w,h = img.size
+                    nw=458; nh=max(int(h*nw/w),20)
+                    img = img.resize((nw,nh), Image.NEAREST)
                     photo = ImageTk.PhotoImage(img)
-                    self.preview.config(image=photo, text="")
-                    self.preview.image = photo
+                    self.preview.config(image=photo, text=""); self.preview.image = photo
             except: pass
         self.root.after(150, self._preview_loop)
 
-    # ═══ Log ═══
     def log(self, msg):
         self.log_box.config(state=tk.NORMAL)
         self.log_box.insert(tk.END, f"[{time.strftime('%H:%M:%S')}] {msg}\n")
         self.log_box.see(tk.END)
         lines = int(self.log_box.index("end-1c").split(".")[0])
-        if lines > 80:
-            self.log_box.delete("1.0", f"{lines-80}.0")
+        if lines > 80: self.log_box.delete("1.0",f"{lines-80}.0")
         self.log_box.config(state=tk.DISABLED)
 
-    def _quit(self):
-        self.running = False
-        time.sleep(0.1)
-        self.root.destroy()
+    def _quit(self): self.running=False; time.sleep(0.1); self.root.destroy()
+    def run(self): self.root.mainloop()
 
-    def run(self):
-        self.root.mainloop()
-
-
-if __name__ == "__main__":
-    App().run()
+if __name__ == "__main__": App().run()

@@ -27,8 +27,8 @@ except ImportError as e:
 for p in [r"C:\Program Files\Tesseract-OCR\tesseract.exe",r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"]:
     if os.path.exists(p): pytesseract.pytesseract.tesseract_cmd=p; break
 
-try: import dxcam
-except ImportError: dxcam=None
+# DXcam disabled (จับเกมได้แต่เป็นจอดำ)
+dxcam=None
 
 # ═══ SendInput Scancode ═══
 SCAN={'q':0x10,'w':0x11,'e':0x12,'r':0x13,'a':0x1E,'s':0x1F,'d':0x20,'f':0x21,'space':0x39}
@@ -73,19 +73,23 @@ def grab(r):
                 frame=_camera.grab(region=(L,T,L+W,T+H))
                 if frame is not None: return frame
             except Exception: pass
-    # 2. mss (fast)
+    # mss (fast + reliable)
     if _sct is None:
         try: _sct=mss.mss()
         except Exception: pass
     if _sct:
         try:
             a=np.array(_sct.grab({"left":L,"top":T,"width":W,"height":H}))
-            if a.size>0: return cv2.cvtColor(a,cv2.COLOR_BGRA2BGR)
+            if a.size>0:
+                frame=cv2.cvtColor(a,cv2.COLOR_BGRA2BGR)
+                if np.mean(frame)>5: return frame  # ไม่ใช่จอดำ
         except Exception: pass
-    # 3. PIL (slowest)
+    # PIL fallback
     try:
         i=ImageGrab.grab(bbox=(L,T,L+W,T+H))
-        if i: return cv2.cvtColor(np.array(i),cv2.COLOR_RGB2BGR)
+        if i:
+            frame=cv2.cvtColor(np.array(i),cv2.COLOR_RGB2BGR)
+            if np.mean(frame)>5: return frame
     except Exception: pass
     return None
 

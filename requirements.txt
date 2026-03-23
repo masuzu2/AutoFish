@@ -1,0 +1,6 @@
+keyboard
+mss
+opencv-python
+numpy
+Pillow
+pytesseract

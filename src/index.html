@@ -5,245 +5,206 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AutoFish</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter'],mono:['JetBrains Mono']}}}}</script>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Nunito'],mono:['JetBrains Mono']}}}}</script>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Inter',sans-serif;background:linear-gradient(180deg,#0f172a,#020617);color:#e5e7eb;min-height:100vh;user-select:none}
-  ::-webkit-scrollbar{width:3px}
-  ::-webkit-scrollbar-thumb{background:#1e293b;border-radius:3px}
-  .card{background:#111827;border:1px solid rgba(30,41,59,0.6);border-radius:14px;transition:all 0.2s ease}
-  .card:hover{border-color:rgba(51,65,85,0.5);box-shadow:0 8px 32px rgba(0,0,0,0.2)}
-  .btn{padding:8px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s ease;border:none}
-  .btn:hover{transform:translateY(-1px)}
-  .btn:active{transform:scale(0.97)}
-  input[type=range]{-webkit-appearance:none;height:4px;border-radius:2px;background:#1e293b}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%}
-  .r-b::-webkit-slider-thumb{background:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,0.15)}
-  .r-g::-webkit-slider-thumb{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,0.15)}
-  .tog{width:36px;height:20px;border-radius:10px;background:#1e293b;position:relative;cursor:pointer;transition:all 0.2s}
-  .tog.on{background:rgba(59,130,246,0.8)}
-  .tog::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#e5e7eb;top:2px;left:2px;transition:all 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3)}
-  .tog.on::after{transform:translateX(16px)}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}.pulse{animation:pulse 1.5s ease infinite}
-  @keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}.fi{animation:fadein 0.2s ease}
+  body{font-family:'Nunito',sans-serif;background:linear-gradient(135deg,#f0f4ff 0%,#fdf2f8 50%,#f0fdf4 100%);margin:0;min-height:100vh;user-select:none}
+  .card{background:white;border-radius:20px;box-shadow:0 2px 16px rgba(0,0,0,0.04);border:2px solid #f1f5f9;transition:all 0.2s ease}
+  .card:hover{box-shadow:0 4px 24px rgba(0,0,0,0.07);transform:translateY(-1px)}
+  .btn{border-radius:14px;font-weight:700;cursor:pointer;transition:all 0.15s ease;border:none;font-family:'Nunito'}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,0.1)}
+  .btn:active{transform:scale(0.96)}
+  input[type=range]{-webkit-appearance:none;height:6px;border-radius:3px;background:#e2e8f0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.15)}
+  .r-b::-webkit-slider-thumb{background:#60a5fa}
+  .r-g::-webkit-slider-thumb{background:#4ade80}
+  .tog{width:40px;height:22px;border-radius:11px;background:#e2e8f0;position:relative;cursor:pointer;transition:all 0.25s ease}
+  .tog.on{background:#60a5fa}
+  .tog::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:white;top:2px;left:2px;transition:all 0.25s ease;box-shadow:0 1px 4px rgba(0,0,0,0.15)}
+  .tog.on::after{transform:translateX(18px)}
+  @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}.pulse{animation:pulse 1.5s ease infinite}
+  @keyframes pop{0%{transform:scale(0.8);opacity:0}100%{transform:scale(1);opacity:1}}.pop{animation:pop 0.2s ease}
+  ::-webkit-scrollbar{width:4px}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
 </style>
 </head>
 <body>
-<div class="max-w-[490px] mx-auto px-5 py-5 space-y-3">
+<div class="max-w-[480px] mx-auto px-5 py-6 space-y-3">
 
   <!-- Header -->
-  <div class="flex items-center justify-between mb-1">
+  <div class="flex items-center justify-between mb-2">
     <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-[10px] bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/15 text-lg">🐟</div>
+      <div class="text-4xl" style="animation:bounce 2s ease infinite">🐟</div>
       <div>
-        <h1 class="text-[17px] font-bold text-gray-100 tracking-tight">AutoFish</h1>
-        <p class="text-[10px] text-gray-500 font-medium">by Herlove · v6.0</p>
+        <h1 class="text-xl font-extrabold text-slate-700 tracking-tight">AutoFish</h1>
+        <p class="text-[11px] text-pink-300 font-bold">by Herlove ✨</p>
       </div>
     </div>
-    <div id="badge" class="flex items-center gap-1.5 px-2.5 py-[5px] rounded-full text-[10px] font-semibold bg-white/[0.03] text-gray-500 border border-white/[0.06]">
-      <span id="dot" class="w-[5px] h-[5px] rounded-full bg-gray-600"></span>
+    <div id="badge" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-400 border border-slate-200">
+      <span id="dot" class="w-2 h-2 rounded-full bg-slate-300"></span>
       <span id="bt">Offline</span>
     </div>
   </div>
 
   <!-- Preview -->
   <div class="card overflow-hidden">
-    <div class="px-3 py-[6px] border-b border-white/[0.04] flex items-center justify-between">
-      <span class="text-[9px] font-semibold text-gray-500 uppercase tracking-[0.1em]">Live Preview</span>
-      <span id="fpsL" class="text-[9px] font-mono text-gray-600">— fps</span>
+    <div class="px-4 py-2 bg-blue-50/50 border-b border-blue-100/50 flex items-center justify-between">
+      <span class="text-[11px] font-bold text-blue-300">📺 Live Preview</span>
+      <span id="fpsL" class="text-[10px] font-mono text-blue-200">— fps</span>
     </div>
-    <div class="bg-[#0a0f1a] h-28 flex items-center justify-center overflow-hidden">
+    <div class="bg-slate-50 h-28 flex items-center justify-center">
       <img id="prevImg" class="hidden w-full h-full object-contain">
-      <p id="prevTxt" class="text-sm text-gray-600">Run <code class="text-[11px] bg-white/5 px-1 rounded">engine.py</code> then select region</p>
+      <p id="prevTxt" class="text-sm text-slate-300 font-semibold">
+        Press <kbd class="px-2 py-0.5 bg-blue-100 rounded-lg text-[11px] text-blue-400 font-mono">F6</kbd> to start
+      </p>
     </div>
   </div>
 
   <!-- Keys -->
-  <div id="keysRow" class="flex justify-center gap-[6px] min-h-[36px]"></div>
+  <div id="keysRow" class="flex justify-center gap-2 min-h-[42px]"></div>
 
   <!-- Start -->
   <button id="btnS" onclick="doToggle()"
-    class="w-full py-[11px] rounded-[12px] font-bold text-[15px] tracking-wide transition-all duration-200
-           bg-gradient-to-r from-emerald-500 to-green-400 text-white
-           shadow-lg shadow-emerald-500/15 hover:shadow-xl hover:shadow-emerald-500/20 active:scale-[0.98]">
-    Start
+    class="btn w-full py-3 text-[16px] bg-gradient-to-r from-green-300 to-emerald-300 text-white shadow-lg shadow-green-200/50">
+    ▶ Start Fishing!
   </button>
 
   <!-- Stats -->
-  <div class="grid grid-cols-4 gap-[6px]">
-    <div class="card px-2 py-[10px] text-center">
-      <div id="sK" class="text-[20px] font-bold text-blue-400 font-mono">0</div>
-      <div class="text-[8px] text-gray-500 font-semibold uppercase tracking-[0.12em] mt-1">Keys</div>
+  <div class="grid grid-cols-3 gap-2">
+    <div class="card px-3 py-3 text-center bg-blue-50/50">
+      <div class="text-lg">🎯</div>
+      <div id="sK" class="text-2xl font-extrabold text-blue-500 font-mono">0</div>
+      <div class="text-[9px] text-blue-300 font-bold">Keys</div>
     </div>
-    <div class="card px-2 py-[10px] text-center">
-      <div id="sF" class="text-[20px] font-bold text-cyan-400 font-mono">0</div>
-      <div class="text-[8px] text-gray-500 font-semibold uppercase tracking-[0.12em] mt-1">Fish</div>
+    <div class="card px-3 py-3 text-center bg-pink-50/50">
+      <div class="text-lg">🐟</div>
+      <div id="sF" class="text-2xl font-extrabold text-pink-500 font-mono">0</div>
+      <div class="text-[9px] text-pink-300 font-bold">Fish</div>
     </div>
-    <div class="card px-2 py-[10px] text-center">
-      <div id="sFp" class="text-[20px] font-bold text-violet-400 font-mono">0</div>
-      <div class="text-[8px] text-gray-500 font-semibold uppercase tracking-[0.12em] mt-1">FPS</div>
-    </div>
-    <div class="card px-2 py-[10px] text-center">
-      <div id="sT" class="text-[20px] font-bold text-amber-400 font-mono">0:00</div>
-      <div class="text-[8px] text-gray-500 font-semibold uppercase tracking-[0.12em] mt-1">Time</div>
+    <div class="card px-3 py-3 text-center bg-amber-50/50">
+      <div class="text-lg">⏱️</div>
+      <div id="sT" class="text-2xl font-extrabold text-amber-500 font-mono">0:00</div>
+      <div class="text-[9px] text-amber-300 font-bold">Time</div>
     </div>
   </div>
 
   <!-- Controls -->
   <div class="card p-4">
-    <div class="text-[9px] font-semibold text-gray-500 uppercase tracking-[0.1em] mb-3">Controls</div>
-    <div class="flex gap-[6px]">
-      <button onclick="doRegion()" class="btn flex-1 bg-blue-500/[0.08] text-blue-400 hover:bg-blue-500/[0.15]">Region (F6)</button>
-      <button onclick="doTest()" class="btn flex-1 bg-emerald-500/[0.08] text-emerald-400 hover:bg-emerald-500/[0.15]">Test Read</button>
-      <button onclick="doKey()" class="btn flex-1 bg-violet-500/[0.08] text-violet-400 hover:bg-violet-500/[0.15]">Test Key</button>
+    <div class="text-[11px] font-bold text-slate-300 mb-3">🎮 Controls</div>
+    <div class="flex gap-2">
+      <button onclick="doRegion()" class="btn flex-1 py-2.5 text-[13px] bg-blue-100 text-blue-500 hover:bg-blue-200">📍 Region</button>
+      <button onclick="doTest()" class="btn flex-1 py-2.5 text-[13px] bg-amber-100 text-amber-600 hover:bg-amber-200">🔍 Test</button>
+      <button onclick="doKey()" class="btn flex-1 py-2.5 text-[13px] bg-purple-100 text-purple-500 hover:bg-purple-200">⌨️ Key</button>
     </div>
-    <div class="text-right mt-[6px]">
-      <span id="regI" class="text-[10px] font-mono text-gray-600">not set</span>
+    <div class="text-right mt-2">
+      <span id="regI" class="text-[10px] font-mono text-slate-300">not set</span>
     </div>
   </div>
 
   <!-- Settings -->
-  <div class="card p-4 space-y-[10px]">
-    <div class="text-[9px] font-semibold text-gray-500 uppercase tracking-[0.1em]">Settings</div>
+  <div class="card p-4 space-y-3">
+    <div class="text-[11px] font-bold text-slate-300">⚙️ Settings</div>
     <div class="flex items-center justify-between">
-      <span class="text-[13px] text-gray-300">Keys per Lane</span>
+      <span class="text-[13px] text-slate-500 font-semibold">Keys per Lane</span>
       <div class="flex items-center gap-2">
         <input type="range" id="rK" min="2" max="10" value="5" class="w-[90px] r-b" oninput="$('vK').textContent=this.value">
-        <span id="vK" class="text-[13px] font-mono font-semibold text-blue-400 w-4 text-right">5</span>
+        <span id="vK" class="text-[14px] font-mono font-bold text-blue-500 w-4 text-right">5</span>
       </div>
     </div>
     <div class="flex items-center justify-between">
-      <span class="text-[13px] text-gray-300">Key Delay</span>
+      <span class="text-[13px] text-slate-500 font-semibold">Key Delay</span>
       <div class="flex items-center gap-2">
         <input type="range" id="rD" min="30" max="200" value="60" class="w-[90px] r-g" oninput="$('vD').textContent=this.value+'ms'">
-        <span id="vD" class="text-[13px] font-mono font-semibold text-emerald-400 w-[38px] text-right">60ms</span>
+        <span id="vD" class="text-[14px] font-mono font-bold text-green-500 w-[38px] text-right">60ms</span>
       </div>
     </div>
     <div class="flex items-center justify-between">
-      <span class="text-[13px] text-gray-300">Auto Cast</span>
+      <span class="text-[13px] text-slate-500 font-semibold">Auto Cast</span>
       <div id="tC" class="tog" onclick="this.classList.toggle('on')"></div>
     </div>
   </div>
 
   <!-- Log -->
   <div class="card overflow-hidden">
-    <div class="px-4 py-[6px] border-b border-white/[0.04] flex items-center justify-between">
-      <span class="text-[9px] font-semibold text-gray-500 uppercase tracking-[0.1em]">System Log</span>
-      <span class="text-[9px] text-gray-700">engine.py</span>
+    <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+      <span class="text-[11px] font-bold text-slate-300">📋 Log</span>
     </div>
-    <div id="logBox" class="px-4 py-3 h-[100px] overflow-y-auto font-mono text-[10px] leading-[1.6] text-gray-500">
-      <div class="text-gray-600">Waiting for engine...</div>
+    <div id="logBox" class="px-4 py-3 h-[90px] overflow-y-auto text-[11px] text-slate-400 font-mono space-y-0.5">
+      <div class="text-slate-300">Waiting for engine... 🐟</div>
     </div>
   </div>
 
-  <div class="flex items-center justify-between text-[8px] text-gray-700 pt-1">
-    <span>F5 Start · F6 Region</span>
-    <span>Tauri + Python</span>
+  <div class="text-center text-[9px] text-slate-300 font-semibold pt-1">
+    Made with 💖 by Herlove
   </div>
 </div>
 
 <script>
 const API="http://localhost:8765";
 const $=id=>document.getElementById(id);
-let running=false,pollId=null;
+let running=false;
 
-// ═══ API Calls ═══
-async function api(path){
-  try{const r=await fetch(API+path);return await r.json()}
-  catch{return null}
-}
+async function api(p){try{return await(await fetch(API+p)).json()}catch{return null}}
 
 async function doToggle(){
-  if(running){
-    await api("/stop"); running=false; updateUI(false);
-  }else{
-    const k=$('rK').value, d=$('rD').value, c=$('tC').classList.contains('on')?1:0;
-    const r=await api(`/start?keys=${k}&delay=${d}&cast=${c}&castkey=e&castdelay=5`);
-    if(r&&r.ok){running=true; updateUI(true)}
-    else{addLog("Cannot start - set region first")}
+  if(running){await api("/stop");running=false;updateUI(false)}
+  else{
+    const k=$('rK').value,d=$('rD').value,c=$('tC').classList.contains('on')?1:0;
+    const r=await api(`/start?keys=${k}&delay=${d}&cast=${c}`);
+    if(r&&r.ok){running=true;updateUI(true)}
+    else addLog("Set region first! 📍")
   }
 }
-
 async function doRegion(){
-  const x=prompt("Region X:"),y=prompt("Region Y:");
-  const w=prompt("Region Width:"),h=prompt("Region Height:");
-  if(x&&y&&w&&h){
-    const r=await api(`/region?x=${x}&y=${y}&w=${w}&h=${h}`);
-    if(r&&r.ok) $('regI').textContent=`${w}x${h}`;
-  }
+  const x=prompt("X:"),y=prompt("Y:"),w=prompt("Width:"),h=prompt("Height:");
+  if(x&&y&&w&&h){const r=await api(`/region?x=${x}&y=${y}&w=${w}&h=${h}`);if(r&&r.ok)$('regI').textContent=`${w}x${h}`}
 }
-
 async function doTest(){
   const r=await api("/testread");
-  if(r&&r.keys&&r.keys.length) showKeys(r.keys);
-  else addLog("Read failed");
+  if(r&&r.keys&&r.keys.length)showKeys(r.keys);else addLog("Read failed 😢")
 }
-
-async function doKey(){
-  addLog("Pressing D+S in 3s...");
-  setTimeout(()=>api("/testkey"),3000);
-}
-
-// ═══ Polling ═══
-async function poll(){
-  const s=await api("/status");
-  if(!s) return;
-  $('sK').textContent=s.keys; $('sF').textContent=s.fish;
-  $('sFp').textContent=s.fps; $('sT').textContent=s.time;
-  $('fpsL').textContent=s.fps+" fps";
-  if(s.last_keys) showKeys(s.last_keys.split(" ").map(k=>k.toLowerCase()));
-  if(s.region) $('regI').textContent=`${s.region.width}x${s.region.height}`;
-  // Log
-  const lb=$('logBox');
-  lb.innerHTML=s.log.map(l=>`<div class="fi">${l}</div>`).join('');
-  lb.scrollTop=lb.scrollHeight;
-  // Preview
-  const p=await api("/preview");
-  if(p&&p.b64){
-    $('prevImg').src="data:image/jpeg;base64,"+p.b64;
-    $('prevImg').classList.remove('hidden');
-    $('prevTxt').classList.add('hidden');
-  }
-  // Status sync
-  if(s.running!==running){running=s.running; updateUI(running)}
-}
+async function doKey(){addLog("Pressing in 3s... 🎹");setTimeout(()=>api("/testkey"),3000)}
 
 function updateUI(on){
   const b=$('btnS'),bg=$('badge'),d=$('dot'),bt=$('bt');
   if(on){
-    b.textContent='Stop';
-    b.className=b.className.replace('from-emerald-500 to-green-400','from-red-500 to-rose-400');
-    bg.className='flex items-center gap-1.5 px-2.5 py-[5px] rounded-full text-[10px] font-semibold bg-emerald-500/[0.08] text-emerald-400 border border-emerald-500/[0.15]';
-    d.className='w-[5px] h-[5px] rounded-full bg-emerald-400 pulse';
-    bt.textContent='Active';
+    b.innerHTML='⏹ Stop';b.className='btn w-full py-3 text-[16px] bg-gradient-to-r from-red-300 to-rose-300 text-white shadow-lg shadow-red-200/50';
+    bg.className='flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-green-100 text-green-500 border border-green-200';
+    d.className='w-2 h-2 rounded-full bg-green-400 pulse';bt.textContent='Active ✨';
   }else{
-    b.textContent='Start';
-    b.className=b.className.replace('from-red-500 to-rose-400','from-emerald-500 to-green-400');
-    bg.className='flex items-center gap-1.5 px-2.5 py-[5px] rounded-full text-[10px] font-semibold bg-white/[0.03] text-gray-500 border border-white/[0.06]';
-    d.className='w-[5px] h-[5px] rounded-full bg-gray-600';
-    bt.textContent='Offline';
+    b.innerHTML='▶ Start Fishing!';b.className='btn w-full py-3 text-[16px] bg-gradient-to-r from-green-300 to-emerald-300 text-white shadow-lg shadow-green-200/50';
+    bg.className='flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-400 border border-slate-200';
+    d.className='w-2 h-2 rounded-full bg-slate-300';bt.textContent='Offline';
   }
 }
 
-function showKeys(chars){
-  $('keysRow').innerHTML=chars.map(k=>
-    `<div class="fi w-[34px] h-[34px] rounded-[9px] bg-blue-500/[0.08] border border-blue-500/[0.15]
-      flex items-center justify-center text-blue-400 font-bold text-[15px] font-mono">${k.toUpperCase()}</div>`
+function showKeys(c){
+  $('keysRow').innerHTML=c.map(k=>
+    `<div class="pop w-10 h-10 rounded-2xl bg-blue-100 border-2 border-blue-200 flex items-center justify-center text-blue-600 font-extrabold text-lg font-mono shadow-sm">${k.toUpperCase()}</div>`
   ).join('');
 }
 
 function addLog(m){
-  const lb=$('logBox'),d=document.createElement('div');
-  d.textContent=`[${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}] ${m}`;
-  d.className='fi'; lb.appendChild(d); lb.scrollTop=lb.scrollHeight;
+  const b=$('logBox'),d=document.createElement('div');
+  d.textContent=`${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})} ${m}`;
+  d.className='pop';b.appendChild(d);b.scrollTop=b.scrollHeight;
+  while(b.children.length>30)b.removeChild(b.firstChild);
+}
+
+async function poll(){
+  const s=await api("/status");if(!s)return;
+  $('sK').textContent=s.keys;$('sF').textContent=s.fish;$('sT').textContent=s.time;$('fpsL').textContent=s.fps+" fps";
+  if(s.last_keys)showKeys(s.last_keys.split(" ").map(k=>k.toLowerCase()));
+  if(s.region)$('regI').textContent=`${s.region.width}x${s.region.height}`;
+  const lb=$('logBox');lb.innerHTML=s.log.map(l=>`<div>${l}</div>`).join('');lb.scrollTop=lb.scrollHeight;
+  const p=await api("/preview");
+  if(p&&p.b64){$('prevImg').src="data:image/jpeg;base64,"+p.b64;$('prevImg').classList.remove('hidden');$('prevTxt').classList.add('hidden')}
+  if(s.running!==running){running=s.running;updateUI(running)}
 }
 
 document.addEventListener('keydown',e=>{if(e.key==='F5'){e.preventDefault();doToggle()}});
-
-// Start polling
-setInterval(poll,200);
-addLog("UI ready - waiting for engine.py");
+setInterval(poll,250);
 </script>
 </body>
 </html>

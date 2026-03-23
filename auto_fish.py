@@ -60,94 +60,138 @@ def press_key(key):
         ii = IU(); ii.ki = KI(0, sc, 0x0008, 0, ctypes.pointer(ex))
         x = INP(1, ii)
         ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
-        time.sleep(0.05)
+        time.sleep(random.uniform(0.03, 0.08))  # #2 Humanized hold
         ii2 = IU(); ii2.ki = KI(0, sc, 0x0008|0x0002, 0, ctypes.pointer(ex))
         x2 = INP(1, ii2)
         ctypes.windll.user32.SendInput(1, ctypes.pointer(x2), ctypes.sizeof(x2))
         return True
-    except: return False
+    except Exception as e:  # #5 Better error
+        print(f"Key error: {e}")
+        return False
 
-# ═══ Capture ═══
+# ═══ Capture (#3 DXcam → mss → PIL fallback) ═══
+_dxcam = None
 _sct = None
-def get_sct():
-    global _sct
-    if _sct is None:
-        try: _sct = mss.mss()
-        except: pass
-    return _sct
+
+try:
+    import dxcam as _dxcam_lib
+    _dxcam = _dxcam_lib.create()
+    CAPTURE_METHOD = "dxcam"
+except Exception:
+    CAPTURE_METHOD = "mss"
 
 def grab(r):
     left,top,w,h = int(r["left"]),int(r["top"]),int(r["width"]),int(r["height"])
-    s = get_sct()
-    if s:
+    global _sct
+
+    # DXcam (fastest - DirectX Desktop Duplication)
+    if _dxcam:
         try:
-            arr = np.array(s.grab({"left":left,"top":top,"width":w,"height":h}))
+            frame = _dxcam.grab(region=(left, top, left+w, top+h))
+            if frame is not None:
+                return cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR)
+        except Exception: pass
+
+    # mss (fast)
+    if _sct is None:
+        try: _sct = mss.mss()
+        except Exception: pass
+    if _sct:
+        try:
+            arr = np.array(_sct.grab({"left":left,"top":top,"width":w,"height":h}))
             if arr.size > 0: return cv2.cvtColor(arr, cv2.COLOR_BGRA2BGR)
-        except: pass
+        except Exception: pass
+
+    # PIL (slowest fallback)
     try:
         img = ImageGrab.grab(bbox=(left,top,left+w,top+h))
         if img: return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-    except: pass
+    except Exception: pass
     return None
 
-# ═══ OCR Engine ═══
+# ═══ OCR Engine (Game-Specific: White text on dark boxes) ═══
 VALID = set("qweasd")
+from collections import Counter
 
-def read_slot(gray_slot):
+def _clean_slot(gray_slot):
+    """เตรียม slot สำหรับ OCR: ขาวบนดำ + crop แน่น"""
     if gray_slot is None or gray_slot.size < 20: return None
-    big = cv2.resize(gray_slot, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    for m in range(2):
+    # ขยาย 4x (ยิ่งใหญ่ OCR ยิ่งแม่น)
+    big = cv2.resize(gray_slot, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
+    # Threshold สูง: เกมนี้ตัวอักษรขาวจัด (>180) บนพื้นมืด
+    _, t = cv2.threshold(big, 180, 255, cv2.THRESH_BINARY)
+    # ให้ตัวอักษร = ดำ, พื้น = ขาว (Tesseract ชอบแบบนี้)
+    if np.count_nonzero(t) > t.size // 2:
+        t = cv2.bitwise_not(t)
+    # ลบ noise จุดเล็กๆ
+    kern = cv2.getStructuringElement(cv2.MORPH_RECT, (2,2))
+    t = cv2.morphologyEx(t, cv2.MORPH_OPEN, kern)
+    # Crop แน่นกับตัวอักษร (ลบขอบว่าง)
+    coords = np.argwhere(t > 127) if np.count_nonzero(t > 127) < t.size // 2 else np.argwhere(t < 128)
+    if len(coords) < 10: return t  # ไม่มี content ก็ส่งคืนเลย
+    y0,x0 = coords.min(axis=0); y1,x1 = coords.max(axis=0)
+    pad = 6
+    cropped = t[max(0,y0-pad):y1+pad+1, max(0,x0-pad):x1+pad+1]
+    if cropped.shape[0] < 8 or cropped.shape[1] < 8: return t
+    return cropped
+
+def read_single(gray_slot):
+    """อ่าน 1 ตัว: ลอง 3 threshold + vote (PSM 10 = single char)"""
+    if gray_slot is None or gray_slot.size < 20: return None
+    big = cv2.resize(gray_slot, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
+    votes = []
+
+    for tval in [180, 160, 200]:
         try:
-            _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-            if m == 1: t = cv2.bitwise_not(t)
+            _, t = cv2.threshold(big, tval, 255, cv2.THRESH_BINARY)
             if np.count_nonzero(t) > t.size // 2: t = cv2.bitwise_not(t)
-            text = pytesseract.image_to_string(t, config='--psm 10 -c tessedit_char_whitelist=QWEASDqweasd').strip().lower()
+            kern = cv2.getStructuringElement(cv2.MORPH_RECT, (2,2))
+            t = cv2.morphologyEx(t, cv2.MORPH_OPEN, kern)
+            text = pytesseract.image_to_string(t,
+                config='--psm 10 -c tessedit_char_whitelist=QWEASDqweasd').strip().lower()
             for c in text:
-                if c in VALID: return c
-        except: continue
-    return None
+                if c in VALID: votes.append(c); break
+        except Exception: continue
+
+    # ลอง Otsu ด้วย
+    try:
+        _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+        if np.count_nonzero(t) > t.size // 2: t = cv2.bitwise_not(t)
+        text = pytesseract.image_to_string(t,
+            config='--psm 10 -c tessedit_char_whitelist=QWEASDqweasd').strip().lower()
+        for c in text:
+            if c in VALID: votes.append(c); break
+    except Exception: pass
+
+    if not votes: return None
+    most = Counter(votes).most_common(1)[0]
+    # ต้องได้อย่างน้อย 2 votes ตรงกันถึงจะมั่นใจ
+    return most[0] if most[1] >= 2 else (most[0] if len(votes) == 1 else None)
 
 def read_all(gray, num_keys):
+    """อ่านทั้งแถว: ทีละ slot (แม่นที่สุด) + ตัดขอบขวา"""
     if gray is None or gray.size < 100: return None
     h, w = gray.shape[:2]
-
-    # ตัดขอบขวา 5%
-    trim = int(w * 0.05)
-    trimmed = gray[:, :w-trim] if trim > 3 else gray
-
-    kernel = np.array([[0,-1,0],[-1,5,-1],[0,-1,0]])
-    processed = cv2.filter2D(trimmed, -1, kernel)
-    processed = cv2.GaussianBlur(processed, (3,3), 0)
-    big = cv2.resize(processed, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR)
-
-    for m in range(3):
-        try:
-            if m == 0: _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-            elif m == 1:
-                _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-                t = cv2.bitwise_not(t)
-            else: _, t = cv2.threshold(big, 180, 255, cv2.THRESH_BINARY)
-            if np.count_nonzero(t) > t.size // 2: t = cv2.bitwise_not(t)
-            text = pytesseract.image_to_string(t, config='--psm 7 -c tessedit_char_whitelist=QWEASDqweasd').strip().lower()
-            chars = [c for c in text if c in VALID]
-            if len(chars) == num_keys and all(c in VALID for c in chars):
-                # ตรวจซ้ำตัวสุดท้าย
-                sw = w // num_keys
-                last_slot = gray[:, (num_keys-1)*sw:]
-                last_char = read_slot(last_slot)
-                if last_char and last_char != chars[-1]:
-                    chars[-1] = last_char
-                return chars
-        except: continue
-
-    # Fallback: ทีละ slot
     sw = w // num_keys
+
+    # ตัดขอบขวา 8% (กัน counter เล้ย)
+    trim = int(w * 0.08)
+    usable_w = w - trim if trim > 3 else w
+
     chars = []
     for i in range(num_keys):
-        pad = max(sw//10, 2)
-        slot = gray[:, max(0,i*sw-pad):min(w,(i+1)*sw+pad)]
-        chars.append(read_slot(slot))
-    if all(c is not None for c in chars): return chars
+        # แบ่ง slot ให้พอดี (ไม่ overlap กัน)
+        x1 = int(i * usable_w / num_keys)
+        x2 = int((i + 1) * usable_w / num_keys)
+        # Padding เล็กน้อยให้ OCR เห็นตัวอักษรครบ
+        pad = max((x2 - x1) // 12, 2)
+        slot = gray[:, max(0, x1-pad):min(usable_w, x2+pad)]
+
+        ch = read_single(slot)
+        chars.append(ch)
+
+    if all(c is not None and c in VALID for c in chars):
+        return chars
     return None
 
 _frame_count = 0
@@ -587,9 +631,12 @@ class App:
 
                         for key in keys:
                             if not self.running: break
-                            press_key(key)
+                            ok = press_key(key)
+                            if not ok:  # retry ถ้าพลาด
+                                time.sleep(0.02)
+                                press_key(key)
                             self.session_keys += 1
-                            time.sleep(kd + random.uniform(0.02, 0.08))
+                            time.sleep(kd + random.uniform(0.03, 0.12))
 
                         if sys.platform == 'win32':
                             try: import winsound; winsound.Beep(800, 80)

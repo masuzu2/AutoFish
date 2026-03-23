@@ -434,26 +434,28 @@ class App:
         self.sf.config(highlightbackground=DIM);self.seq.config(text="")
         self.log("> Stopped")
     def _show(self):
-        if self.dbg is None: return
+        if getattr(self,"dbg",None) is None: return
         try:
-            rgb=cv2.cvtColor(self.dbg,cv2.COLOR_BGR2RGB);img=Image.fromarray(rgb)
-            w,h=img.size;nw=462;nh=max(int(h*nw/w),20)
-            img=img.resize((nw,nh),Image.LANCZOS);ph=ImageTk.PhotoImage(img)
-            self.prev.config(image=ph,text="");self.prev.image=ph
-        except: pass
+            h,w=self.dbg.shape[:2]; nw=462; nh=max(int(h*nw/w),20)
+            # OpenCV resize (C++ เร็วกว่า PIL.LANCZOS 10x)
+            resized=cv2.resize(self.dbg,(nw,nh),interpolation=cv2.INTER_NEAREST)
+            rgb=cv2.cvtColor(resized,cv2.COLOR_BGR2RGB)
+            img=Image.fromarray(rgb)
+            ph=ImageTk.PhotoImage(img)
+            self.prev.config(image=ph,text=""); self.prev.image=ph
+        except Exception: pass
+
     def _prev_loop(self):
-        if self.running and self.dbg is not None: self._show()
-        elif region:
+        if self.running and getattr(self,"dbg",None) is not None:
+            self._show()
+        elif region and not self.running:
             try:
                 f=grab(region)
                 if f is not None:
-                    d=make_debug(f,None,self.nk.get())
-                    rgb=cv2.cvtColor(d,cv2.COLOR_BGR2RGB);img=Image.fromarray(rgb)
-                    w,h=img.size;nw=462;nh=max(int(h*nw/w),20)
-                    img=img.resize((nw,nh),Image.LANCZOS);ph=ImageTk.PhotoImage(img)
-                    self.prev.config(image=ph,text="");self.prev.image=ph
-            except: pass
-        self.root.after(120,self._prev_loop)
+                    self.dbg=make_debug(f,None,self.nk.get())
+                    self._show()
+            except Exception: pass
+        self.root.after(16,self._prev_loop)  # 60FPS (16ms)
     def log(self,msg):
         self.log_b.config(state=tk.NORMAL)
         self.log_b.insert(tk.END,f"[{time.strftime('%H:%M:%S')}] {msg}\n")

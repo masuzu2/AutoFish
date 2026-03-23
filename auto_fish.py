@@ -109,90 +109,121 @@ def grab(r):
     except Exception: pass
     return None
 
-# ═══ OCR Engine (Game-Specific: White text on dark boxes) ═══
+# ═══ Hybrid Engine: Template (fast) + OCR (fallback, auto-learn) ═══
 VALID = set("qweasd")
 from collections import Counter
 
-def _clean_slot(gray_slot):
-    """เตรียม slot สำหรับ OCR: ขาวบนดำ + crop แน่น"""
-    if gray_slot is None or gray_slot.size < 20: return None
-    # ขยาย 4x (ยิ่งใหญ่ OCR ยิ่งแม่น)
-    big = cv2.resize(gray_slot, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
-    # Threshold สูง: เกมนี้ตัวอักษรขาวจัด (>180) บนพื้นมืด
-    _, t = cv2.threshold(big, 180, 255, cv2.THRESH_BINARY)
-    # ให้ตัวอักษร = ดำ, พื้น = ขาว (Tesseract ชอบแบบนี้)
-    if np.count_nonzero(t) > t.size // 2:
-        t = cv2.bitwise_not(t)
-    # ลบ noise จุดเล็กๆ
-    kern = cv2.getStructuringElement(cv2.MORPH_RECT, (2,2))
-    t = cv2.morphologyEx(t, cv2.MORPH_OPEN, kern)
-    # Crop แน่นกับตัวอักษร (ลบขอบว่าง)
-    coords = np.argwhere(t > 127) if np.count_nonzero(t > 127) < t.size // 2 else np.argwhere(t < 128)
-    if len(coords) < 10: return t  # ไม่มี content ก็ส่งคืนเลย
-    y0,x0 = coords.min(axis=0); y1,x1 = coords.max(axis=0)
-    pad = 6
-    cropped = t[max(0,y0-pad):y1+pad+1, max(0,x0-pad):x1+pad+1]
-    if cropped.shape[0] < 8 or cropped.shape[1] < 8: return t
-    return cropped
+# Template cache (เร็ว 100x กว่า OCR)
+_tmpl_dir = os.path.join(SCRIPT_DIR, "templates")
+os.makedirs(_tmpl_dir, exist_ok=True)
+_tmpls = {}  # key -> [gray images h=48]
+_TH = 48
 
-def read_single(gray_slot):
-    """อ่าน 1 ตัว: ลอง 3 threshold + vote (PSM 10 = single char)"""
+def _load_tmpls():
+    for f in os.listdir(_tmpl_dir):
+        if not f.endswith(".png"): continue
+        k = f.split("_")[0].split(".")[0].lower()
+        if len(k) != 1 or k not in VALID: continue
+        img = cv2.imread(os.path.join(_tmpl_dir, f), cv2.IMREAD_GRAYSCALE)
+        if img is not None:
+            h2,w2 = img.shape[:2]
+            _tmpls.setdefault(k, []).append(cv2.resize(img, (max(int(w2*_TH/h2),3), _TH)))
+
+def _save_tmpl(key, gray_img):
+    n = len([f for f in os.listdir(_tmpl_dir) if f.startswith(key)])
+    if n >= 3: return  # max 3 per key
+    fname = f"{key}.png" if n == 0 else f"{key}_{n+1}.png"
+    cv2.imwrite(os.path.join(_tmpl_dir, fname), gray_img)
+    h2,w2 = gray_img.shape[:2]
+    _tmpls.setdefault(key, []).append(cv2.resize(gray_img, (max(int(w2*_TH/h2),3), _TH)))
+
+def _match_tmpl(gray_slot):
+    """Template matching (~1ms ต่อ slot)"""
+    if not _tmpls or gray_slot is None or gray_slot.size < 20: return None, 0
+    h2,w2 = gray_slot.shape[:2]
+    if h2 < 3 or w2 < 3: return None, 0
+    roi = cv2.resize(gray_slot, (max(int(w2*_TH/h2),3), _TH))
+    best_c, best_v = None, 0
+    for ch, ts in _tmpls.items():
+        for t in ts:
+            tw = t.shape[1]
+            if tw > roi.shape[1]*1.5 or tw < roi.shape[1]*0.3: continue
+            target = roi
+            if tw > roi.shape[1] or t.shape[0] > roi.shape[0]:
+                px = max(0,(tw-roi.shape[1])//2+3)
+                py = max(0,(t.shape[0]-roi.shape[0])//2+3)
+                target = cv2.copyMakeBorder(roi,py,py,px,px,cv2.BORDER_CONSTANT,value=0)
+            try:
+                res = cv2.matchTemplate(target, t, cv2.TM_CCOEFF_NORMED)
+                _,mx,_,_ = cv2.minMaxLoc(res)
+                if mx > best_v: best_c, best_v = ch, mx
+                if mx > 0.85: return best_c, best_v
+            except Exception: continue
+    return (best_c, best_v) if best_v > 0.55 else (None, 0)
+
+def _ocr_single(gray_slot):
+    """Tesseract OCR 1 ตัว (~50ms) - ใช้เฉพาะตอนไม่มี template"""
     if gray_slot is None or gray_slot.size < 20: return None
     big = cv2.resize(gray_slot, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
     votes = []
-
-    for tval in [180, 160, 200]:
+    for tval in [180, 160]:
         try:
             _, t = cv2.threshold(big, tval, 255, cv2.THRESH_BINARY)
             if np.count_nonzero(t) > t.size // 2: t = cv2.bitwise_not(t)
-            kern = cv2.getStructuringElement(cv2.MORPH_RECT, (2,2))
-            t = cv2.morphologyEx(t, cv2.MORPH_OPEN, kern)
             text = pytesseract.image_to_string(t,
                 config='--psm 10 -c tessedit_char_whitelist=QWEASDqweasd').strip().lower()
             for c in text:
                 if c in VALID: votes.append(c); break
         except Exception: continue
-
-    # ลอง Otsu ด้วย
-    try:
-        _, t = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-        if np.count_nonzero(t) > t.size // 2: t = cv2.bitwise_not(t)
-        text = pytesseract.image_to_string(t,
-            config='--psm 10 -c tessedit_char_whitelist=QWEASDqweasd').strip().lower()
-        for c in text:
-            if c in VALID: votes.append(c); break
-    except Exception: pass
-
     if not votes: return None
-    most = Counter(votes).most_common(1)[0]
-    # ต้องได้อย่างน้อย 2 votes ตรงกันถึงจะมั่นใจ
-    return most[0] if most[1] >= 2 else (most[0] if len(votes) == 1 else None)
+    return Counter(votes).most_common(1)[0][0]
+
+def _prep(gray_slot):
+    """Threshold + crop สำหรับ template"""
+    if gray_slot is None or gray_slot.size < 20: return None
+    _, t = cv2.threshold(gray_slot, 180, 255, cv2.THRESH_BINARY)
+    if np.count_nonzero(t) > t.size // 2: t = cv2.bitwise_not(t)
+    cs = np.argwhere(t > 127)
+    if len(cs) < 5: return None
+    y0,x0 = cs.min(0); y1,x1 = cs.max(0)
+    c = t[max(0,y0-1):y1+2, max(0,x0-1):x1+2]
+    return c if c.shape[0] > 3 and c.shape[1] > 3 else None
 
 def read_all(gray, num_keys):
-    """อ่านทั้งแถว: ทีละ slot (แม่นที่สุด) + ตัดขอบขวา"""
+    """อ่านทั้งแถว: Template first (1ms) → OCR fallback (50ms) + auto-learn"""
     if gray is None or gray.size < 100: return None
     h, w = gray.shape[:2]
-    sw = w // num_keys
-
-    # ตัดขอบขวา 8% (กัน counter เล้ย)
     trim = int(w * 0.08)
     usable_w = w - trim if trim > 3 else w
+    has_templates = len(_tmpls) >= 4  # มี template ครบพอหรือยัง
 
     chars = []
     for i in range(num_keys):
-        # แบ่ง slot ให้พอดี (ไม่ overlap กัน)
         x1 = int(i * usable_w / num_keys)
-        x2 = int((i + 1) * usable_w / num_keys)
-        # Padding เล็กน้อยให้ OCR เห็นตัวอักษรครบ
-        pad = max((x2 - x1) // 12, 2)
-        slot = gray[:, max(0, x1-pad):min(usable_w, x2+pad)]
+        x2 = int((i+1) * usable_w / num_keys)
+        pad = max((x2-x1) // 12, 2)
+        slot = gray[:, max(0,x1-pad):min(usable_w,x2+pad)]
+        processed = _prep(slot)
+        ch = None
 
-        ch = read_single(slot)
+        # FAST: Template matching (~1ms)
+        if has_templates and processed is not None:
+            ch, cf = _match_tmpl(processed)
+
+        # SLOW: OCR fallback (~50ms) + auto-save เป็น template
+        if ch is None:
+            ch = _ocr_single(slot)
+            if ch and processed is not None:
+                _save_tmpl(ch, processed)
+
         chars.append(ch)
 
     if all(c is not None and c in VALID for c in chars):
         return chars
     return None
+
+_load_tmpls()
+_n_tmpls = sum(len(v) for v in _tmpls.values())
 
 _frame_count = 0
 

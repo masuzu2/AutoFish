@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoFish</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter'],mono:['JetBrains Mono']}}}}</script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;background:linear-gradient(180deg,#0f172a 0%,#020617 100%);color:#e5e7eb;min-height:100vh;user-select:none}
+  ::-webkit-scrollbar{width:3px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#1e293b;border-radius:3px}
+  .card{background:#111827;border:1px solid rgba(30,41,59,0.6);border-radius:16px;transition:all 0.2s ease}
+  .card:hover{border-color:rgba(51,65,85,0.5);box-shadow:0 8px 32px rgba(0,0,0,0.25)}
+  .btn{padding:9px 18px;border-radius:11px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s ease;border:none;outline:none}
+  .btn:hover{transform:translateY(-1px)}
+  .btn:active{transform:scale(0.97)}
+  input[type=range]{-webkit-appearance:none;height:4px;border-radius:2px;background:#1e293b;outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;transition:all 0.15s}
+  .r-blue::-webkit-slider-thumb{background:#3b82f6;box-shadow:0 0 0 4px rgba(59,130,246,0.15)}
+  .r-green::-webkit-slider-thumb{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,0.15)}
+  .toggle-wrap{width:36px;height:20px;border-radius:10px;background:#1e293b;position:relative;cursor:pointer;transition:all 0.2s ease}
+  .toggle-wrap.on{background:rgba(59,130,246,0.8)}
+  .toggle-dot{width:16px;height:16px;border-radius:50%;background:#e5e7eb;position:absolute;top:2px;left:2px;transition:all 0.2s ease;box-shadow:0 1px 4px rgba(0,0,0,0.25)}
+  .toggle-wrap.on .toggle-dot{transform:translateX(16px)}
+  @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .fadein{animation:fadein 0.3s ease}
+  @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.3}}
+  .pulse{animation:pulse-dot 1.5s ease infinite}
+</style>
+</head>
+<body>
+
+<div class="max-w-[490px] mx-auto px-5 py-6 space-y-3">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="flex items-center justify-between mb-1">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-[10px] bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/15 text-lg">🐟</div>
+      <div>
+        <h1 class="text-[17px] font-bold text-gray-100 tracking-tight leading-tight">AutoFish</h1>
+        <p class="text-[10px] text-gray-500 font-medium tracking-wide">by Herlove · v6.0</p>
+      </div>
+    </div>
+    <div id="badge" class="flex items-center gap-1.5 px-2.5 py-[5px] rounded-full text-[10px] font-semibold bg-white/[0.03] text-gray-500 border border-white/[0.06] backdrop-blur-sm">
+      <span id="dot" class="w-[5px] h-[5px] rounded-full bg-gray-600"></span>
+      <span id="badgeText">Offline</span>
+    </div>
+  </div>
+
+  <!-- ═══ PREVIEW ═══ -->
+  <div class="card overflow-hidden">
+    <div class="px-4 py-[7px] border-b border-white/[0.04] flex items-center justify-between">
+      <span class="text-[9px] font-semibold text-gray-500 uppercase tracking-[0.1em]">Live Preview</span>
+      <span id="fpsLbl" class="text-[9px] font-mono text-gray-600">— fps</span>
+    </div>
+    <div id="prevBox" class="bg-[#0a0f1a] h-28 flex items-center justify-center">
+      <p id="prevText" class="text-[13px] text-gray-600">
+        Press <kbd class="px-1.5 py-[2px] bg-white/[0.06] rounded text-[11px] font-mono text-gray-400 mx-0.5">F6</kbd> to select region
+      </p>
+      <img id="prevImg" class="hidden w-full h-full object-contain">
+    </div>
+  </div>
+
+  <!-- ═══ DETECTED KEYS ═══ -->
+  <div id="keysRow" class="flex justify-center gap-[6px] min-h-[36px]"></div>
+
+  <!-- ═══ START ═══ -->
+  <button id="btnStart" onclick="toggle()"
+    class="w-full py-[11px] rounded-[12px] font-bold text-[15px] tracking-wide transition-all duration-200
+           bg-gradient-to-r from-emerald-500 to-green-400 text-white
+           shadow-lg shadow-emerald-500/15 hover:shadow-xl hover:shadow-emerald-500/20
+           active:scale-[0.98] focus:outline-none">
+    Start
+  </button>
+
+  <!-- ═══ STATS ═══ -->
+  <div class="grid grid-cols-4 gap-[6px]">
+    <div class="card px-2 py-[10px] text-center">
+      <div id="sK" class="text-[20px] font-bold text-blue-400 font-mono leading-none">0</div>
+      <div class="text-[8px] text-gray-500 font-semibold uppercase tracking-[0.12em] mt-[6px]">Keys</div>
+    </div>
+    <div class="card px-2 py-[10px] text-center">
+      <div id="sF" class="text-[20px] font-bold text-cyan-400 font-mono leading-none">0</div>
+      <div class="text-[8px] text-gray-500 font-semibold uppercase tracking-[0.12em] mt-[6px]">Fish</div>
+    </div>
+    <div class="card px-2 py-[10px] text-center">
+      <div id="sFps" class="text-[20px] font-bold text-violet-400 font-mono leading-none">0</div>
+      <div class="text-[8px] text-gray-500 font-semibold uppercase tracking-[0.12em] mt-[6px]">FPS</div>
+    </div>
+    <div class="card px-2 py-[10px] text-center">
+      <div id="sT" class="text-[20px] font-bold text-amber-400 font-mono leading-none">0:00</div>
+      <div class="text-[8px] text-gray-500 font-semibold uppercase tracking-[0.12em] mt-[6px]">Time</div>
+    </div>
+  </div>
+
+  <!-- ═══ CONTROLS ═══ -->
+  <div class="card p-4">
+    <div class="text-[9px] font-semibold text-gray-500 uppercase tracking-[0.1em] mb-3">Controls</div>
+    <div class="flex gap-[6px]">
+      <button onclick="selRegion()" class="btn flex-1 bg-blue-500/[0.08] text-blue-400 hover:bg-blue-500/[0.15]">Select Region</button>
+      <button onclick="testRead()" class="btn flex-1 bg-emerald-500/[0.08] text-emerald-400 hover:bg-emerald-500/[0.15]">Test Read</button>
+      <button onclick="testKey()" class="btn flex-1 bg-violet-500/[0.08] text-violet-400 hover:bg-violet-500/[0.15]">Test Key</button>
+    </div>
+    <div class="text-right mt-[6px]">
+      <span id="regInfo" class="text-[10px] font-mono text-gray-600">not set</span>
+    </div>
+  </div>
+
+  <!-- ═══ SETTINGS ═══ -->
+  <div class="card p-4 space-y-[10px]">
+    <div class="text-[9px] font-semibold text-gray-500 uppercase tracking-[0.1em]">Settings</div>
+    <div class="flex items-center justify-between">
+      <span class="text-[13px] text-gray-300">Keys per Lane</span>
+      <div class="flex items-center gap-2">
+        <input type="range" id="rK" min="2" max="10" value="5" class="w-[90px] r-blue" oninput="U(this,'vK')">
+        <span id="vK" class="text-[13px] font-mono font-semibold text-blue-400 w-4 text-right">5</span>
+      </div>
+    </div>
+    <div class="flex items-center justify-between">
+      <span class="text-[13px] text-gray-300">Key Delay</span>
+      <div class="flex items-center gap-2">
+        <input type="range" id="rD" min="30" max="200" value="60" class="w-[90px] r-green" oninput="U(this,'vD','ms')">
+        <span id="vD" class="text-[13px] font-mono font-semibold text-emerald-400 w-[38px] text-right">60ms</span>
+      </div>
+    </div>
+    <div class="flex items-center justify-between">
+      <span class="text-[13px] text-gray-300">Auto Cast Rod</span>
+      <div id="tCast" class="toggle-wrap" onclick="this.classList.toggle('on')"><div class="toggle-dot"></div></div>
+    </div>
+  </div>
+
+  <!-- ═══ LOG ═══ -->
+  <div class="card overflow-hidden">
+    <div class="px-4 py-[7px] border-b border-white/[0.04] flex items-center justify-between">
+      <span class="text-[9px] font-semibold text-gray-500 uppercase tracking-[0.1em]">System Log</span>
+      <button onclick="clrLog()" class="text-[9px] text-gray-600 hover:text-gray-400 transition-colors cursor-pointer">Clear</button>
+    </div>
+    <div id="logBox" class="px-4 py-3 h-[104px] overflow-y-auto font-mono text-[10px] leading-[1.6] text-gray-500">
+      <div class="text-gray-600">System initialized</div>
+    </div>
+  </div>
+
+  <!-- ═══ FOOTER ═══ -->
+  <div class="flex items-center justify-between text-[8px] text-gray-700 pt-1">
+    <span>F5 Start/Stop · F6 Region</span>
+    <span class="text-gray-800">Powered by Tauri</span>
+  </div>
+
+</div>
+
+<script>
+let on=false;
+function toggle(){
+  on=!on;
+  const b=document.getElementById('btnStart'),bg=document.getElementById('badge'),
+        d=document.getElementById('dot'),bt=document.getElementById('badgeText');
+  if(on){
+    b.textContent='Stop';
+    b.className=b.className.replace('from-emerald-500 to-green-400','from-red-500 to-rose-400')
+      .replace(/shadow-emerald-500\/\d+/g,m=>m.replace('emerald','red'));
+    bg.className='flex items-center gap-1.5 px-2.5 py-[5px] rounded-full text-[10px] font-semibold bg-emerald-500/[0.08] text-emerald-400 border border-emerald-500/[0.15]';
+    d.className='w-[5px] h-[5px] rounded-full bg-emerald-400 pulse';
+    bt.textContent='Active';
+    log('Scanning started');
+  }else{
+    b.textContent='Start';
+    b.className=b.className.replace('from-red-500 to-rose-400','from-emerald-500 to-green-400')
+      .replace(/shadow-red-500\/\d+/g,m=>m.replace('red','emerald'));
+    bg.className='flex items-center gap-1.5 px-2.5 py-[5px] rounded-full text-[10px] font-semibold bg-white/[0.03] text-gray-500 border border-white/[0.06]';
+    d.className='w-[5px] h-[5px] rounded-full bg-gray-600';
+    bt.textContent='Offline';
+    log('Stopped');
+  }
+}
+function selRegion(){log('Select region...')}
+function testRead(){log('Testing OCR...')}
+function testKey(){log('Testing key press...')}
+function U(el,id,u=''){document.getElementById(id).textContent=el.value+u}
+function clrLog(){document.getElementById('logBox').innerHTML=''}
+function showKeys(c){
+  document.getElementById('keysRow').innerHTML=c.map(k=>
+    `<div class="fadein w-[34px] h-[34px] rounded-[9px] bg-blue-500/[0.08] border border-blue-500/[0.15]
+      flex items-center justify-center text-blue-400 font-bold text-[15px] font-mono
+      transition-all duration-150 hover:scale-110 hover:bg-blue-500/[0.15]">${k.toUpperCase()}</div>`
+  ).join('');
+}
+function log(m){
+  const b=document.getElementById('logBox'),d=document.createElement('div');
+  const t=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  d.innerHTML=`<span class="text-gray-700">${t}</span> ${m}`;
+  d.className='fadein';
+  b.appendChild(d);b.scrollTop=b.scrollHeight;
+  while(b.children.length>40)b.removeChild(b.firstChild);
+}
+document.addEventListener('keydown',e=>{if(e.key==='F5'){e.preventDefault();toggle()}});
+showKeys(['d','s','w','a','w']);
+</script>
+</body>
+</html>

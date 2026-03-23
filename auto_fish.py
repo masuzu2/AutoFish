@@ -92,7 +92,7 @@ def grab(r):
 # ═══ Template Engine (FAST: ~1ms per slot) ═══
 VALID=set("qweasd")
 TD=os.path.join(SCRIPT_DIR,"templates"); os.makedirs(TD,exist_ok=True)
-TH=48; tmpls={}
+TH=48; tmpls={}  # TH จะ recalculate จาก region height ตอน Start
 
 def load_t():
     global tmpls; tmpls.clear()
@@ -136,8 +136,10 @@ def match_t(gray):
             except Exception: continue
     return (bc,bv) if bv>0.55 else (None,0)
 
+_ocr_error_logged = False
 def ocr_one(gray):
     """Tesseract 1 slot (~50ms) - ใช้แค่ตอนเรียนรู้"""
+    global _ocr_error_logged
     if gray is None or gray.size<20: return None
     big=cv2.resize(gray,None,fx=4,fy=4,interpolation=cv2.INTER_CUBIC)
     for tv in [180,160]:
@@ -147,7 +149,11 @@ def ocr_one(gray):
             txt=pytesseract.image_to_string(t,config='--psm 10 -c tessedit_char_whitelist=QWEASDqweasd').strip().lower()
             for c in txt:
                 if c in VALID: return c
-        except Exception: continue
+        except Exception as e:
+            if not _ocr_error_logged:
+                print(f"[OCR ERROR] {e} - Tesseract installed?")
+                _ocr_error_logged = True
+            continue
     return None
 
 def prep(gray):
@@ -461,6 +467,11 @@ class App:
         ac=self.ac.get(); ck=self.ck.get().lower(); cd=self.cd.get()
         self.session_keys=0; self.session_start=time.time()
         self.fish=0; self.scans=0; self.lt=time.time()
+        # #3 Dynamic TH: คำนวณจาก region height (รองรับ 720p/1080p/2K/4K)
+        global TH
+        TH = max(region["height"] // 2, 24)
+        self.root.after(0,self.log,f"> Template height: {TH}px (from {region['height']}px region)")
+
         t=grab(region)
         if t is None:
             self.root.after(0,self.log,"> Capture fail"); self.running=False
@@ -492,8 +503,13 @@ class App:
                             except Exception: pass
                         self.root.after(0,self._upd,fps); lseq=seq
                         if ac and self.running:
-                            time.sleep(cd+random.uniform(0.2,0.8))
-                            if self.running: press_key(ck); time.sleep(2+random.uniform(0.3,0.7)); lseq=""
+                            # Non-blocking: สแกนต่อระหว่างรอ cast
+                            cast_at = time.time() + cd + random.uniform(0.2,0.8)
+                            while self.running and time.time() < cast_at:
+                                time.sleep(0.05)  # ยังสแกนจอได้
+                            if self.running:
+                                press_key(ck); lseq=""
+                                self.root.after(0,self.log,f"> Cast ({ck.upper()})!")
                         else: time.sleep(0.6+random.uniform(0.1,0.3))
                     else: time.sleep(0.03)
                 else: time.sleep(0.04)

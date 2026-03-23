@@ -2,11 +2,11 @@
 AutoFish by Herlove v5.1
 OCR (ที่ work แล้ว) + SendInput Scancode + Cyberpunk UI
 """
-import time,sys,os,json,threading,ctypes,random
+import time,sys,os,json,threading,ctypes,random,queue
 import tkinter as tk
 from tkinter import messagebox
 SCRIPT_DIR=os.path.dirname(os.path.abspath(__file__))
-VERSION="5.1"
+VERSION="5.2"
 
 def is_admin():
     if sys.platform!='win32': return True
@@ -26,6 +26,9 @@ except ImportError as e:
     messagebox.showerror("AutoFish",f"pip install keyboard mss opencv-python numpy Pillow pytesseract");sys.exit(1)
 for p in [r"C:\Program Files\Tesseract-OCR\tesseract.exe",r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"]:
     if os.path.exists(p): pytesseract.pytesseract.tesseract_cmd=p; break
+
+try: import dxcam
+except ImportError: dxcam=None
 
 # ═══ SendInput Scancode ═══
 SCAN={'q':0x10,'w':0x11,'e':0x12,'r':0x13,'a':0x1E,'s':0x1F,'d':0x20,'f':0x21,'space':0x39}
@@ -55,23 +58,35 @@ def press_key(key):
         return True
     except Exception: return False
 
-# ═══ Capture ═══
-_sct=None
+# ═══ Capture (DXcam 144Hz → mss → PIL) ═══
+_sct=None; _camera=None
 def grab(r):
-    global _sct
+    global _sct,_camera
     L,T,W,H=int(r["left"]),int(r["top"]),int(r["width"]),int(r["height"])
+    # 1. DXcam (fastest - DirectX)
+    if dxcam is not None:
+        if _camera is None:
+            try: _camera=dxcam.create(output_color="BGR")
+            except Exception: pass
+        if _camera is not None:
+            try:
+                frame=_camera.grab(region=(L,T,L+W,T+H))
+                if frame is not None: return frame
+            except Exception: pass
+    # 2. mss (fast)
     if _sct is None:
         try: _sct=mss.mss()
-        except: pass
+        except Exception: pass
     if _sct:
         try:
             a=np.array(_sct.grab({"left":L,"top":T,"width":W,"height":H}))
             if a.size>0: return cv2.cvtColor(a,cv2.COLOR_BGRA2BGR)
-        except: pass
+        except Exception: pass
+    # 3. PIL (slowest)
     try:
         i=ImageGrab.grab(bbox=(L,T,L+W,T+H))
         if i: return cv2.cvtColor(np.array(i),cv2.COLOR_RGB2BGR)
-    except: pass
+    except Exception: pass
     return None
 
 # ═══ OCR (ระบบที่ work แล้ว) ═══
@@ -370,7 +385,6 @@ class App:
         if self.running: self.running=False
         else:
             if not region: messagebox.showwarning("AutoFish","F6 Select Region!");return
-            # อ่านค่า UI ใน main thread (thread-safe)
             params={"num":self.nk.get(),"kd":self.kd.get()/1000,"ac":self.ac.get(),"ck":self.ck.get().lower(),"cd":self.cd.get()}
             self.running=True
             save_cfg(nk=params["num"],kd=self.kd.get(),ac=params["ac"],ck=params["ck"],cd=params["cd"])
@@ -378,10 +392,28 @@ class App:
             self.st.config(text="ON",fg=GREEN);self.dot.config(bg=GREEN)
             self.sf.config(highlightbackground=GREEN)
             self.log("> Go! 3s...")
+            # 2 Thread: ตา (scan) + มือ (keyboard)
+            self.key_queue=queue.Queue()
             threading.Thread(target=self._run,args=(params,),daemon=True).start()
+            threading.Thread(target=self._kb_worker,args=(params,),daemon=True).start()
+
+    def _kb_worker(self,params):
+        """Thread มือ: กดปุ่มจาก queue (ไม่บล็อค scan)"""
+        kd=params["kd"]
+        while self.running:
+            try:
+                key=self.key_queue.get(timeout=0.2)
+                ok=press_key(key)
+                if not ok: time.sleep(0.02);press_key(key)
+                self.session_keys+=1
+                time.sleep(kd+random.uniform(0.03,0.12))
+                self.key_queue.task_done()
+            except queue.Empty: continue
+            except Exception: continue
 
     def _run(self,params):
-        num=params["num"];kd=params["kd"];ac=params["ac"];ck=params["ck"];cd=params["cd"]
+        """Thread ตา: สแกนจอไม่หยุด"""
+        num=params["num"];ac=params["ac"];ck=params["ck"];cd=params["cd"]
         self.session_keys=0;self.session_start=time.time();self.fish=0;self.scans=0;self.lt=time.time()
         t=grab(region)
         if t is None:
@@ -390,7 +422,7 @@ class App:
         while self.running:
             try:
                 f=grab(region)
-                if f is None: time.sleep(0.04);continue
+                if f is None: time.sleep(0.02);continue
                 g=cv2.cvtColor(f,cv2.COLOR_BGR2GRAY)
                 now=time.time();fps=1.0/max(now-self.lt,0.001);self.lt=now;self.scans+=1
                 k=read_fast(g,num);self.dbg=make_debug(f,k,num)
@@ -400,27 +432,24 @@ class App:
                         self.fish+=1
                         self.root.after(0,self.log,f"> #{self.fish} {' '.join(x.upper() for x in k)}")
                         self.root.after(0,self.seq.config,{"text":" ".join(x.upper() for x in k)})
-                        if random.random()<0.05: time.sleep(random.uniform(0.3,1.0))
+                        if random.random()<0.05: time.sleep(random.uniform(0.1,0.3))
+                        # โยนปุ่มเข้า queue ให้ _kb_worker กด (ไม่บล็อค scan!)
                         for key in k:
                             if not self.running: break
-                            ok=press_key(key)
-                            if not ok: time.sleep(0.02);press_key(key)
-                            self.session_keys+=1
-                            time.sleep(kd+random.uniform(0.03,0.12))
+                            self.key_queue.put(key)
                         if sys.platform=='win32':
                             try: import winsound;winsound.Beep(800,60)
-                            except: pass
+                            except Exception: pass
                         self.root.after(0,self._upd,fps);lseq=seq
                         if ac and self.running:
-                            # Cast ใน thread แยก (ไม่บล็อค scan)
                             def _cast():
                                 time.sleep(cd+random.uniform(0.2,0.8))
                                 if self.running: press_key(ck);self.root.after(0,self.log,f"> Cast!")
                             threading.Thread(target=_cast,daemon=True).start()
                             lseq=""
                         else: time.sleep(0.6+random.uniform(0.1,0.3))
-                    else: time.sleep(0.03)
-                else: time.sleep(0.04)
+                    else: time.sleep(0.02)
+                else: time.sleep(0.02)
             except Exception as e:
                 self.root.after(0,self.log,f"> {e}");time.sleep(0.5)
         self.root.after(0,self._rst)

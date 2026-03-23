@@ -190,6 +190,8 @@ def make_debug(frame,keys,num):
         cx2=int(w/num*i+w/num/2);cy2=by+pb//2
         if keys and i<len(keys) and keys[i]: cv2.circle(cv,(cx2,cy2),4,(74,222,128),-1)
         else: cv2.circle(cv,(cx2,cy2),4,(40,50,70),-1)
+    # CRT Scanline effect
+    cv[::2,:]=(cv[::2,:]*0.75).astype(np.uint8)
     return cv
 
 # ═══ Config ═══
@@ -228,7 +230,16 @@ class App:
                 img=ImageTk.PhotoImage(Image.open(ico).resize((32,32),Image.LANCZOS))
                 self.root.iconphoto(True,img);self._ico=img
         except: pass
-        self._build();self._prev_loop();self._tick()
+        self._build();self._dark_titlebar();self._prev_loop();self._tick()
+
+    def _dark_titlebar(self):
+        if sys.platform!='win32': return
+        try:
+            self.root.update()
+            hwnd=ctypes.windll.user32.GetParent(self.root.winfo_id())
+            val=ctypes.c_int(2)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd,20,ctypes.byref(val),ctypes.sizeof(val))
+        except Exception: pass
         self.root.protocol("WM_DELETE_WINDOW",self._quit)
 
     def _build(self):
@@ -285,7 +296,10 @@ class App:
         ct.pack(fill=tk.X,padx=18,pady=(4,0))
         ci=tk.Frame(ct,bg=CARD);ci.pack(fill=tk.X,padx=6,pady=5)
         for t2,c2,cmd in [("Select F6",ACCENT,self.pick),("Test Read",GREEN,self.tread),("Test Key",PURPLE,self.tkey)]:
-            tk.Button(ci,text=t2,bg="#0a1128",fg=c2,font=("Segoe UI",8,"bold"),relief="flat",padx=6,pady=2,cursor="hand2",command=cmd).pack(side=tk.LEFT,padx=2)
+            btn=tk.Button(ci,text=t2,bg="#0a1128",fg=c2,font=("Segoe UI",8,"bold"),relief="flat",padx=6,pady=2,cursor="hand2",command=cmd)
+            btn.pack(side=tk.LEFT,padx=2)
+            btn.bind("<Enter>",lambda e,b=btn:b.config(bg=DIM2))
+            btn.bind("<Leave>",lambda e,b=btn:b.config(bg="#0a1128"))
         self.lreg=tk.Label(ci,text="not set",bg=CARD,fg=ORANGE,font=("Consolas",8,"bold"))
         self.lreg.pack(side=tk.RIGHT,padx=4)
         sf=tk.Frame(self.root,bg=CARD,highlightbackground=DIM2,highlightthickness=1)
@@ -308,6 +322,13 @@ class App:
         tk.Label(ft,text="Admin" if is_admin() else "NO ADMIN!",bg=BG,fg=DIM2 if is_admin() else RED,font=("Consolas",7,"bold")).pack(side=tk.RIGHT)
         self.root.bind("<F5>",lambda e:self.toggle())
         self.root.bind("<F6>",lambda e:self.pick())
+        self.log_b.config(state=tk.NORMAL)
+        self.log_b.tag_config("dim",foreground=DIM)
+        self.log_b.insert(tk.END," ___      _       ___ _    _   \n","dim")
+        self.log_b.insert(tk.END,"|_ _|_ _ (_)__ _ | __(_)__| |_ \n","dim")
+        self.log_b.insert(tk.END," | || ' \\| / _` || _|| (_-< ' \\\n","dim")
+        self.log_b.insert(tk.END,"|___|_||_|\\_\\__,_|_| |_|__/_||_|\n","dim")
+        self.log_b.config(state=tk.DISABLED)
         self.log(f"> AutoFish v{VERSION}")
         self.log(f"> Admin: {'YES' if is_admin() else 'NO!'}")
         try: self.log(f"> Tesseract {pytesseract.get_tesseract_version()}")

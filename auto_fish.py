@@ -153,8 +153,8 @@ class App:
         self.root=tk.Tk();self.root.title("AutoFish v2.0")
         self.root.geometry("480x650");self.root.configure(bg=BG)
         self.root.resizable(False,False);self.root.attributes("-topmost",True)
-        self.running=False;self.keys=0;self.fish=0;self.lt=time.time()
-        self.dbg=None;self.start_t=0
+        self.running=False;self.paused=False;self.keys=0;self.fish=0;self.scans=0
+        self.lt=time.time();self.dbg=None;self.start_t=0
         self.nk=tk.IntVar(value=load_cfg().get("nk",5))
         self.kd=tk.IntVar(value=load_cfg().get("kd",60))
         try:
@@ -194,7 +194,7 @@ class App:
         self.btn.pack(fill=tk.X,padx=16,pady=(4,0))
 
         sf=tk.Frame(self.root,bg=CARD);sf.pack(fill=tk.X,padx=16,pady=(6,0))
-        for a,v,l,c in [("lk","0","KEYS",ACCENT),("lf","0","FISH",GLOW),("lt2","00:00","TIME","#fb923c")]:
+        for a,v,l,c in [("lk","0","KEYS",ACCENT),("lf","0","FISH",GLOW),("lr","—","RATE","#a78bfa"),("lt2","00:00","TIME","#fb923c")]:
             f=tk.Frame(sf,bg=CARD);f.pack(side=tk.LEFT,expand=True,pady=6)
             lb=tk.Label(f,text=v,bg=CARD,fg=c,font=("Consolas",18,"bold"));lb.pack()
             tk.Label(f,text=l,bg=CARD,fg=DIM,font=("Consolas",7,"bold")).pack()
@@ -218,7 +218,8 @@ class App:
 
         self.root.bind("<F5>",lambda e:self.toggle())
         self.root.bind("<F6>",lambda e:self.pick())
-        self.log(f"> AutoFish v2.0 FAST")
+        self.root.bind("<F7>",lambda e:self.pause())
+        self.log(f"> AutoFish v2.0 FAST | F5 Start | F6 Region | F7 Pause")
         self.log(f"> Admin: {'YES' if is_admin() else 'NO!'}")
         try: self.log(f"> Tesseract {pytesseract.get_tesseract_version()}")
         except: self.log("> Tesseract NOT FOUND!")
@@ -277,27 +278,40 @@ class App:
             self.root.after(0,self.log,"> Pressed!")
         threading.Thread(target=_do,daemon=True).start()
 
+    def pause(self):
+        if not self.running: return
+        self.paused=not self.paused
+        if self.paused:
+            self.st.config(text="PAUSE",fg="#fb923c")
+            self.log("> Paused (F7 resume)")
+        else:
+            self.st.config(text="ON",fg=GREEN)
+            self.log("> Resumed!")
+
     def toggle(self):
-        if self.running: self.running=False
+        if self.running: self.running=False;self.paused=False
         else:
             if not region: messagebox.showwarning("AutoFish","F6 Select Region!");return
             num=self.nk.get();kd=self.kd.get()/1000
-            self.running=True;save_cfg(nk=num,kd=self.kd.get())
+            self.running=True;self.paused=False;save_cfg(nk=num,kd=self.kd.get())
             self.btn.config(text="STOP",bg=RED);self.st.config(text="ON",fg=GREEN)
             self.log("> Go! 3s...")
             threading.Thread(target=self._run,args=(num,kd),daemon=True).start()
 
     def _run(self,num,kd):
-        self.keys=0;self.fish=0;self.start_t=time.time();self.lt=time.time()
+        self.keys=0;self.fish=0;self.scans=0;self.start_t=time.time();self.lt=time.time()
         t=grab(region)
         if t is None:
             self.root.after(0,self.log,"> Capture fail");self.running=False;self.root.after(0,self._rst);return
         time.sleep(3);self.root.after(0,self.log,"> Scanning...");lseq=""
         while self.running:
             try:
+                # F7 Pause
+                if self.paused: time.sleep(0.1);continue
                 f=grab(region)
                 if f is None: time.sleep(0.04);continue
                 g=cv2.cvtColor(f,cv2.COLOR_BGR2GRAY)
+                self.scans+=1
                 k=read_fast(g,num);self.dbg=make_debug(f,k,num)
                 if k and len(k)==num:
                     seq="".join(k)
@@ -310,8 +324,16 @@ class App:
                             if not self.running: break
                             press_key(key);self.keys+=1
                             time.sleep(kd+random.uniform(0.03,0.12))
+                        # Update stats
+                        rate=f"{int(self.fish/max(self.scans,1)*100)}%"
                         self.root.after(0,self.lk.config,{"text":str(self.keys)})
                         self.root.after(0,self.lf.config,{"text":str(self.fish)})
+                        self.root.after(0,self.lr.config,{"text":rate})
+                        # Beep!
+                        if sys.platform=='win32':
+                            try:
+                                import winsound;winsound.Beep(800,60)
+                            except: pass
                         lseq=seq;time.sleep(0.6+random.uniform(0.1,0.3))
                     else: time.sleep(0.03)
                 else: time.sleep(0.04)

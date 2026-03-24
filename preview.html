@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg-main:#020617;--glass-bg:rgba(30,41,59,0.45);--glass-border:rgba(255,255,255,0.08)}
+  body{font-family:'Inter',sans-serif;background-color:var(--bg-main);background-image:radial-gradient(circle at 15% 50%,rgba(56,189,248,0.08),transparent 25%),radial-gradient(circle at 85% 30%,rgba(16,185,129,0.08),transparent 25%);color:#e2e8f0;margin:0;user-select:none;overflow:hidden;height:100vh}
+  .bg-grid{position:fixed;top:0;left:0;right:0;bottom:0;z-index:-1;background-size:40px 40px;background-image:linear-gradient(to right,rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,0.02) 1px,transparent 1px);-webkit-mask-image:linear-gradient(to bottom,transparent 10%,black 50%,transparent 90%)}
+  .glass{background:var(--glass-bg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:16px;box-shadow:0 4px 30px rgba(0,0,0,0.2)}
+  .glass-inner{background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.03);box-shadow:inset 0 2px 10px rgba(0,0,0,0.5)}
+  .btn{border-radius:12px;font-weight:700;cursor:pointer;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);border:1px solid transparent;display:flex;align-items:center;justify-content:center;gap:6px}
+  .btn:hover{transform:translateY(-2px);filter:brightness(1.15)}
+  .btn:active{transform:scale(0.96);filter:brightness(0.9)}
+  .btn-start-idle{background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 0 25px rgba(16,185,129,0.3);border-color:rgba(255,255,255,0.2)}
+  .btn-sub{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05)}
+  .btn-sub:hover{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15)}
+  .keycap{width:38px;height:38px;background:linear-gradient(180deg,#334155,#1e293b);border:1px solid #475569;border-bottom-width:3px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;color:#38bdf8;text-shadow:0 0 8px rgba(56,189,248,0.5);box-shadow:0 4px 6px rgba(0,0,0,0.3)}
+  .text-gradient{background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .glow-text{text-shadow:0 0 12px currentColor}
+  ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:4px}
+  input[type=range]{-webkit-appearance:none;height:6px;border-radius:3px;background:rgba(255,255,255,0.08)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#38bdf8;box-shadow:0 0 10px #38bdf8;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="max-w-[480px] mx-auto px-5 py-5 space-y-4 relative z-10 h-full flex flex-col">
+  <div class="flex items-center justify-between glass px-4 py-3">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-xl shadow-[0_0_15px_rgba(56,189,248,0.4)]">🐟</div>
+      <div>
+        <div class="text-lg font-bold tracking-tight text-white flex items-center gap-2">AutoFish <span class="px-1.5 py-0.5 rounded bg-white/10 text-[9px] text-cyan-300 font-mono">PRO</span></div>
+        <div class="text-[10px] text-slate-400 font-medium tracking-wide uppercase">by Herlove</div>
+      </div>
+    </div>
+    <div class="px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-widest border border-emerald-500/50 bg-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)] animate-pulse">ACTIVE</div>
+  </div>
+  <div class="glass p-1">
+    <div class="glass-inner rounded-xl overflow-hidden relative">
+      <div class="absolute top-0 left-0 w-full px-3 py-1.5 bg-gradient-to-b from-black/60 to-transparent text-[9px] font-bold text-slate-400 uppercase tracking-wider z-10 flex justify-between">
+        <span>Vision Preview</span><span class="font-mono text-cyan-500 glow-text">265×78</span>
+      </div>
+      <div class="h-24 flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
+        <span class="text-[10px] text-slate-500 uppercase tracking-widest">Live Capture Active</span>
+      </div>
+    </div>
+  </div>
+  <div class="flex flex-col items-center justify-center min-h-[50px]">
+    <div class="text-[9px] text-slate-500 font-bold tracking-widest mb-2 uppercase">Current Sequence</div>
+    <div class="flex justify-center gap-2">
+      <div class="keycap">D</div><div class="keycap">S</div><div class="keycap">W</div><div class="keycap">A</div><div class="keycap">W</div>
+    </div>
+  </div>
+  <button class="btn btn-start-idle w-full py-3.5 text-base text-white tracking-widest uppercase shadow-lg">
+    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Initialize Engine
+  </button>
+  <div class="grid grid-cols-4 gap-2.5">
+    <div class="glass p-3 text-center relative overflow-hidden group"><div class="absolute inset-0 bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div><div class="text-xl font-bold font-mono text-gradient bg-gradient-to-br from-blue-300 to-blue-500 glow-text mb-0.5">127</div><div class="text-[8px] text-slate-400 font-bold tracking-wider">KEYS</div></div>
+    <div class="glass p-3 text-center relative overflow-hidden group"><div class="absolute inset-0 bg-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div><div class="text-xl font-bold font-mono text-gradient bg-gradient-to-br from-cyan-300 to-emerald-400 glow-text mb-0.5">24</div><div class="text-[8px] text-slate-400 font-bold tracking-wider">FISH</div></div>
+    <div class="glass p-3 text-center relative overflow-hidden group"><div class="absolute inset-0 bg-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div><div class="text-xl font-bold font-mono text-gradient bg-gradient-to-br from-purple-400 to-pink-400 glow-text mb-0.5">18%</div><div class="text-[8px] text-slate-400 font-bold tracking-wider">RATE</div></div>
+    <div class="glass p-3 text-center relative overflow-hidden group"><div class="absolute inset-0 bg-amber-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div><div class="text-xl font-bold font-mono text-gradient bg-gradient-to-br from-amber-300 to-orange-400 glow-text mb-0.5">05:42</div><div class="text-[8px] text-slate-400 font-bold tracking-wider">TIME</div></div>
+  </div>
+  <div class="flex gap-3">
+    <div class="glass p-3 flex-1 flex flex-col gap-2">
+      <div class="text-[9px] font-bold text-slate-400 tracking-wider mb-1">MODULES</div>
+      <div class="grid grid-cols-2 gap-2">
+        <button class="btn btn-sub py-2 text-[10px] text-blue-300"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg> Area</button>
+        <button class="btn btn-sub py-2 text-[10px] text-cyan-300"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg> Scan</button>
+        <button class="btn btn-sub py-2 text-[10px] text-purple-300"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"/></svg> Test</button>
+        <button class="btn btn-sub py-2 text-[10px] text-amber-300"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Hold</button>
+      </div>
+    </div>
+    <div class="glass p-3 flex-1 flex flex-col gap-2">
+      <div class="text-[9px] font-bold text-slate-400 tracking-wider mb-1">PARAMETERS</div>
+      <div class="flex-1 flex flex-col justify-center gap-3">
+        <div><div class="flex justify-between items-end mb-1"><span class="text-[10px] text-slate-300">Slots</span><span class="text-xs font-mono font-bold text-cyan-400">5</span></div><input type="range" min="2" max="10" value="5" class="w-full"></div>
+        <div><div class="flex justify-between items-end mb-1"><span class="text-[10px] text-slate-300">Delay (ms)</span><span class="text-xs font-mono font-bold text-emerald-400">60</span></div><input type="range" min="30" max="200" value="60" class="w-full"></div>
+      </div>
+    </div>
+  </div>
+  <div class="glass flex-1 flex flex-col overflow-hidden min-h-[90px]">
+    <div class="px-3 py-2 border-b border-white/5 bg-white/5 text-[9px] font-bold text-slate-400 tracking-widest flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_#10b981]"></div> TERMINAL</div>
+    <div class="glass-inner flex-1 p-2 overflow-hidden">
+      <div class="h-full overflow-y-auto font-mono text-[10px] text-slate-400 leading-relaxed pr-1 flex flex-col justify-end">
+        <div class="mb-1"><span class="text-cyan-500/50 mr-1">»</span><span class="text-slate-500">[11:30:01]</span> System Boot: AutoFish UI Remastered</div>
+        <div class="mb-1"><span class="text-cyan-500/50 mr-1">»</span><span class="text-slate-500">[11:30:01]</span> Privilege Level: ROOT/ADMIN</div>
+        <div class="mb-1"><span class="text-cyan-500/50 mr-1">»</span><span class="text-slate-500">[11:30:02]</span> OCR Engine: Tesseract 5.3.0</div>
+        <div class="mb-1"><span class="text-cyan-500/50 mr-1">»</span><span class="text-slate-500">[11:30:05]</span> Bot Engine Started!</div>
+        <div class="mb-1"><span class="text-cyan-500/50 mr-1">»</span><span class="text-emerald-400 font-bold">Catch #1</span> » D S W A W</div>
+        <div class="mb-1"><span class="text-cyan-500/50 mr-1">»</span><span class="text-emerald-400 font-bold">Catch #2</span> » Q A S D E</div>
+        <div class="mb-1"><span class="text-cyan-500/50 mr-1">»</span><span class="text-emerald-400 font-bold">Catch #3</span> » W S A D Q</div>
+      </div>
+    </div>
+  </div>
+  <div class="text-center text-[9px] font-medium text-slate-600 tracking-widest">[F5] POWER · [F7] HOLD · CORE: PYWEBVIEW</div>
+</div>
+</body>
+</html>

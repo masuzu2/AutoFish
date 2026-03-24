@@ -116,15 +116,20 @@ def read_fast(gray,num):
 
 def make_debug(frame,keys,num):
     d=frame.copy();h,w=d.shape[:2];sw=w//num
-    cv2.rectangle(d,(0,0),(w-1,h-1),(56,189,248),2)
+    # กรอบบาง สีฟ้าอ่อน
+    cv2.rectangle(d,(0,0),(w-1,h-1),(180,140,60),1)
     for i in range(num):
         x1,x2=i*sw,min((i+1)*sw,w)
         if keys and i<len(keys) and keys[i]:
-            cv2.rectangle(d,(x1+2,2),(x2-2,h-2),(0,255,0),2)
-            cv2.putText(d,keys[i].upper(),(x1+8,24),cv2.FONT_HERSHEY_SIMPLEX,0.7,(0,255,0),2)
+            # เจอ: กรอบเขียว + ตัวอักษรกลาง
+            cv2.rectangle(d,(x1+2,2),(x2-2,h-2),(0,200,0),2)
+            l=keys[i].upper()
+            fs=0.8 if sw>40 else 0.6
+            (tw,th),_=cv2.getTextSize(l,cv2.FONT_HERSHEY_SIMPLEX,fs,2)
+            tx=x1+(sw-tw)//2;ty=(h+th)//2
+            cv2.putText(d,l,(tx,ty),cv2.FONT_HERSHEY_SIMPLEX,fs,(0,255,0),2)
         else:
-            cv2.rectangle(d,(x1+2,2),(x2-2,h-2),(40,40,60),1)
-    cv2.putText(d,"AUTOFISH",(8,h-8),cv2.FONT_HERSHEY_SIMPLEX,0.35,(0,255,255),1)
+            cv2.rectangle(d,(x1+2,2),(x2-2,h-2),(50,50,50),1)
     return d
 
 CFG=os.path.join(SCRIPT_DIR,"config.json");region=None
